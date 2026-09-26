@@ -118,7 +118,8 @@ Each rule produces a **membership degree** μ in [0,1], and the full context eva
 Explanation:
 - **rules** define atomic fuzzy membership functions over raw features.
 - **derived_rules** combine atomic rules using fuzzy operators (`AND`, `OR`, `PRODUCT`, `AVERAGE`).
-- **logic** defines how derived (or atomic) rules are aggregated into the final context score.
+- **logic** defines a declarative final aggregation when the context engine is used without an explicit override.
+- In the interactive application, the operator selected under **Context Parameters** takes precedence and is applied to the numeric atomic and derived memberships retained in the audit matrix.
 - All membership values are normalized in the range `[0,1]`.
 
 ---

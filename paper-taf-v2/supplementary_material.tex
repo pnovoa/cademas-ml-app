@@ -1,0 +1,233 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{setspace}
+
+\setstretch{1.15}
+\hypersetup{colorlinks=true,urlcolor=blue,linkcolor=black}
+
+\definecolor{codebg}{gray}{0.96}
+\lstdefinestyle{json}{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{gray!35},
+  breaklines=true,
+  showstringspaces=false,
+  columns=fullflexible,
+  keepspaces=true
+}
+
+\title{\textbf{Supplementary Material S1}\\[4pt]
+Input-file specification for CADEMAS-ML}
+\author{Pavel Novoa-Hern\'{a}ndez and David A. Pelta}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Scope}
+
+CADEMAS-ML evaluates a collection of cases using multiple H2O MOJO models and a separately defined fuzzy context. An executable analysis bundle comprises four coordinated inputs: a case dataset, model metadata, one or more context specifications, and the MOJO archives themselves. This supplement defines the expected structure of each input and the consistency conditions that connect them. The specification corresponds to the software version described in the accompanying article.
+
+The repository contains a complete bundle under \texttt{example\_attrition/}. Those files are an illustrative implementation of the contract below; they are not part of the generic schema and should not be interpreted as default policy choices for other domains.
+
+\begin{table}[ht]
+\centering
+\caption{Files that constitute an analysis bundle.}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.1cm} >{\raggedright\arraybackslash}p{2.3cm} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Input} & \textbf{Format} & \textbf{Role} \\
+\midrule
+Case dataset & CSV & Supplies one row per case and the variables consumed by predictive models and context rules. \\
+Model metadata & JSON & Associates each MOJO filename with performance metrics, feature names, and display metadata. \\
+Predictive models & H2O MOJO (\texttt{.zip}) & Produce a positive-class probability for every case. \\
+Context specification & JSON & Defines atomic memberships, derived rules, and optional final logic for contextual alignment. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Case dataset}
+
+\subsection{Required structure}
+
+The dataset contains one row per case. Its columns must cover the union of:
+\begin{itemize}
+  \item predictors required internally by the uploaded MOJO models;
+  \item features listed in model metadata for local perturbation explanations; and
+  \item features referenced by atomic context rules, including features used in \texttt{when} conditions.
+\end{itemize}
+
+Additional columns are permitted. A column named \texttt{Case\_ID} or \texttt{ID} may be supplied to identify cases. If neither is present, the application generates consecutive identifiers. Identifier columns are retained for display but excluded from model inference. Comma, semicolon, and tab delimiters are detected automatically.
+
+\subsection{Data consistency}
+
+Numerical context rules require values that can be converted to numeric form. Categorical values must use the same spelling and capitalization as the categories recorded by the MOJO model or context map. Missing-value handling follows the behavior of the corresponding MOJO and membership implementation; consequently, an analysis bundle should define and document an explicit missing-data policy before operational use.
+
+The dataset may include a known outcome for retrospective inspection, as in the bundled \texttt{attrition} example. Such a column is not used in prioritization unless it is explicitly consumed by a model or context rule.
+
+\section{Model metadata JSON}
+
+\subsection{Top-level structure}
+
+The document is a JSON object whose keys are MOJO filenames. Every uploaded model that participates in the analysis must have one corresponding entry, and the key must match the uploaded filename exactly.
+
+\begin{lstlisting}[style=json]
+{
+  "model_a.zip": {
+    "department": "Perspective A",
+    "features": ["feature_1", "feature_2"],
+    "performance": {
+      "auc": 0.91,
+      "aucpr": 0.88
+    }
+  }
+}
+\end{lstlisting}
+
+\begin{table}[ht]
+\centering
+\caption{Fields in each model-metadata entry.}
+\begin{tabularx}{\textwidth}{>{\ttfamily\raggedright\arraybackslash}p{2.8cm} >{\raggedright\arraybackslash}p{2cm} >{\raggedright\arraybackslash}X}
+\toprule
+\normalfont\textbf{Field} & \textbf{Status} & \textbf{Meaning} \\
+\midrule
+performance & Required & Object mapping metric names to finite non-negative numerical values. The metric selected in the interface is normalized across participating models to obtain $w_k$ as described by the model-weight equation in the article. \\
+features & Required for explanations & Array of dataset columns perturbed by the model-agnostic local explanation procedure. Prediction can still rely on the schema embedded in the MOJO, but an empty list prevents feature-level attribution for that model. \\
+department & Optional & Human-readable model or organizational-perspective label used in displays. The filename stem is used when this field is absent. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Metric names are user-defined, but the selected metric must be present for every participating model. Values should be on a common scale and have the same interpretation. Negative, non-finite, or incomparable values are not meaningful under the normalization in Equation~(4) of the article. If all selected values are zero, the application falls back to equal weights.
+
+\section{MOJO model archives}
+
+Each predictive ADM unit is supplied as an H2O MOJO archive with a \texttt{.zip} extension. Models may consume different predictor subsets, but all participating models must:
+\begin{itemize}
+  \item accept the uploaded case matrix after identifier columns are removed;
+  \item return one prediction per case;
+  \item expose compatible positive-class probability columns; and
+  \item use the same substantive interpretation of the positive class.
+\end{itemize}
+
+The software uses \texttt{p1} when that output is available and otherwise uses the final probability column returned by H2O. Agreement on column position alone is insufficient: bundle authors must verify that the positive class has the same semantic meaning across models.
+
+\section{Context configuration JSON}
+
+\subsection{Document-level fields}
+
+\begin{table}[ht]
+\centering
+\caption{Top-level context fields.}
+\begin{tabularx}{\textwidth}{>{\ttfamily\raggedright\arraybackslash}p{2.7cm} >{\raggedright\arraybackslash}p{2.55cm} >{\raggedright\arraybackslash}X}
+\toprule
+\normalfont\textbf{Field} & \textbf{Status} & \textbf{Meaning} \\
+\midrule
+context\_name & Recommended & Human-readable label shown in the context selector; the filename is used as fallback. \\
+description & Optional & Brief explanation shown in the interface. \\
+rules & Required & Array of atomic membership rules over dataset features. \\
+derived\_rules & Optional & Array of rules that aggregate previously defined atomic or derived memberships. \\
+logic & Optional & Declarative final logic tree used when no explicit aggregation override is supplied. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Atomic rules}
+
+Every atomic rule requires a unique \texttt{name}, a dataset \texttt{feature}, a supported \texttt{type}, and compatible \texttt{params}. The optional \texttt{full\_name} and \texttt{note} fields support human-readable displays and documentation.
+
+\begin{table}[ht]
+\centering
+\caption{Supported atomic membership types.}
+\begin{tabularx}{\textwidth}{>{\ttfamily\raggedright\arraybackslash}p{3.4cm} >{\raggedright\arraybackslash}p{3.3cm} >{\raggedright\arraybackslash}X}
+\toprule
+\normalfont\textbf{Type} & \textbf{Parameters} & \textbf{Constraint} \\
+\midrule
+linear\_increasing & \texttt{[a,b]} & Numerical breakpoints with $a<b$. Membership increases from 0 to 1. \\
+linear\_decreasing & \texttt{[a,b]} & Numerical breakpoints with $a<b$. Membership decreases from 1 to 0. \\
+triangular & \texttt{[a,b,c]} & Numerical breakpoints with $a<b<c$. \\
+trapezoidal & \texttt{[a,b,c,d]} & Numerical breakpoints with $a<b\leq c<d$. \\
+categorical\_map & Object & Maps each known category directly to a membership in $[0,1]$. Unspecified categories receive 0. \\
+categorical\_set & Object of arrays & Maps set names to category arrays. A numerical map must be supplied when the rule is consumed by a derived rule. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+An atomic rule can be restricted through a \texttt{when} object:
+\begin{lstlisting}[style=json]
+"when": { "feature": "department", "equals": "Sales" }
+\end{lstlisting}
+or
+\begin{lstlisting}[style=json]
+"when": { "feature": "region", "in": ["North", "West"] }
+\end{lstlisting}
+Rows that do not satisfy the condition receive a zero membership for that rule.
+
+\subsection{Derived rules}
+
+A derived rule has a unique \texttt{name}, an operator \texttt{op}, and a non-empty \texttt{inputs} array. Supported operators are \texttt{AVERAGE}, \texttt{MIN}, \texttt{MAX}, \texttt{PRODUCT}, \texttt{AND}, and \texttt{OR}; \texttt{AND} and \texttt{OR} use the minimum and maximum, respectively.
+
+\begin{lstlisting}[style=json]
+{
+  "name": "career_scalability",
+  "full_name": "Career scalability",
+  "op": "PRODUCT",
+  "inputs": [
+    { "rule": "years_company_relevant" },
+    { "rule": "years_role_relevant" }
+  ]
+}
+\end{lstlisting}
+
+Inputs normally reference an existing atomic or earlier derived rule. When an input refers to a \texttt{categorical\_set}, it must provide the numerical conversion:
+\begin{lstlisting}[style=json]
+{
+  "rule": "jobrole_critical",
+  "map": { "critical": 1.0, "important": 0.7, "standard": 0.3 }
+}
+\end{lstlisting}
+
+\subsection{Final logic and interface override}
+
+The optional \texttt{logic} object uses the same recursive form as a derived rule. A direct reference has the form \texttt{\{"rule":"name"\}}; a composite node contains \texttt{op} and \texttt{inputs}. A final node may additionally declare \texttt{aggregation}. When present, this field determines the numerical aggregation while \texttt{op} retains its linguistic description.
+
+The Streamlit interface provides three explicit final aggregation settings: \textit{average}, \textit{minimum (strict)}, and \textit{product}. For an interactive run, the selected setting takes precedence over the JSON logic and is applied to all numeric atomic and derived memberships stored in the audit matrix. The JSON logic is evaluated by the context engine only when no explicit aggregation override is supplied. Authors should therefore report both the context file and the interface aggregation setting needed to reproduce a result.
+
+\section{Cross-file validation checklist}
+
+Before an analysis bundle is shared or used operationally, the following conditions should be checked:
+\begin{enumerate}
+  \item Every uploaded MOJO filename exactly matches one model-metadata key.
+  \item The selected performance metric exists and is finite and non-negative for every participating model.
+  \item Every model and context feature exists in the case dataset with a compatible type.
+  \item The positive class has the same substantive meaning across all models.
+  \item Atomic and derived rule names are unique.
+  \item Every rule reference resolves to an atomic rule or an earlier derived rule.
+  \item Membership parameters have the required length and ordering.
+  \item Categorical maps cover expected values or document the zero-membership fallback.
+  \item The interface aggregation setting is recorded with exported results.
+  \item The bundle records software, model, data, and policy versions needed for audit and reproduction.
+\end{enumerate}
+
+\section{Bundled example}
+
+The repository example can be loaded with:
+\begin{itemize}
+  \item \texttt{example\_attrition/data/cases\_atttrition.csv};
+  \item \texttt{example\_attrition/model\_definitions.json};
+  \item the archives under \texttt{example\_attrition/models/}; and
+  \item either or both JSON files under \texttt{example\_attrition/context/}.
+\end{itemize}
+
+The complete digital-transformation context is also formalized in Appendix~B of the article. Machine-readable JSON Schemas for model metadata and context configuration accompany this supplement. They express the intended input contract and can be used for pre-submission or continuous-integration validation of new bundles.
+
+\end{document}

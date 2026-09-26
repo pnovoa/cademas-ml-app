@@ -131,7 +131,9 @@ def _eval_logic_node(node, mu_dict: dict, n_rows: int) -> np.ndarray:
 
     # Composite node
     if isinstance(node, dict) and "op" in node and "inputs" in node:
-        op = (node.get("op") or "AVERAGE").upper()
+        # A final logic node may declare an aggregation semantics separately
+        # from its linguistic connective (e.g., AND with average aggregation).
+        op = (node.get("aggregation") or node.get("op") or "AVERAGE").upper()
         inputs = node.get("inputs") or []
         if not isinstance(inputs, list) or len(inputs) == 0:
             return np.zeros(n_rows, dtype=float)

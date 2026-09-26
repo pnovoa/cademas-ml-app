@@ -1,6 +1,7 @@
-% manuscript.tex
-% Taylor & Francis Interact layout + APA author-year (apacite)
-% IJGS Software Tool Article (v2). Do not edit paper-taylor-and-francis/.
+% manuscript_with_biblio.tex
+% Autonomous variant of manuscript.tex. The APA bibliography contains only
+% references cited in this manuscript and is embedded as a thebibliography
+% environment; no external .bib file or BibTeX pass is required.
 
 \documentclass{interact}
 
@@ -78,7 +79,7 @@
 \maketitle
 
 \begin{abstract}
-  Complex real-world decision problems often involve multiple decision-making actors that must combine their assessments while accounting for the organizational, operational, and strategic context surrounding the problem. The Cooperative Automated Decision-Making Systems (CADEMAS) framework was recently proposed to represent this form of cooperative and context-aware decision-making. However, previous CADEMAS instantiations cover only specific configurations of a framework that allows substantially broader combinations of automated decision components, contextual models, and aggregation mechanisms. This flexibility, while valuable for practical applications, also makes the framework difficult to operationalize without dedicated software support. This paper presents CADEMAS-ML, a software tool that implements a configurable class of CADEMAS systems in which automated decision-making components are machine learning models and contextual knowledge is represented through fuzzy logic. The tool supports the integration and weighting of multiple predictive models, configurable fuzzy context models, alternative aggregation operators, and an adjustable trade-off between predictive risk and contextual suitability. CADEMAS-ML also incorporates explainability and robustness analysis to support the inspection and assessment of resulting decisions. An employee attrition case study illustrates how the same predictive evidence can lead to different prioritizations under alternative contextual scenarios.
+Automated decision-making outputs are often interpreted without the organizational context in which action is taken. This paper presents CADEMAS-ML, an open-source software tool that operationalizes the Cooperative Automated Decision-Making Systems (CADEMAS) framework for context-aware case prioritization. Multiple predictive models act as cooperating decision units; their outputs are aggregated into a risk score and combined with contextual alignment encoded as configurable fuzzy rules. The tool explains individual recommendations by decomposing the priority score, attributing local predictive drivers, and tracing fuzzy-rule memberships, and it evaluates ranking robustness under alternative balances between prediction and context. A reproducible employee-attrition example with four departmental models and a digital-transformation policy demonstrates how predictive risk and contextual alignment play distinct roles in prioritization and how users can inspect inputs, intermediate scores, final rankings, and explanations before acting. The article describes the implementation, operation, demonstration setup, and resulting module outputs. Source code, an example bundle, and documentation are available under an MIT license.
 \end{abstract}
 
 \begin{keywords}
@@ -87,43 +88,33 @@ automated decision-making systems; fuzzy decision making; context-aware decision
 
 \section{Introduction}\label{sec:intro}
 
-Decision-making in real-world organizations is rarely a matter of applying a single analytical model to a well-defined set of inputs. Complex decisions often involve multiple actors, organizational units, or analytical components that contribute different pieces of evidence to the same problem. These contributions may reflect different objectives, information sources, areas of expertise, or levels of reliability, and therefore need to be coordinated before they can support a coherent course of action. This has long motivated the development of cooperative and multi-agent decision-support systems, in which heterogeneous decision components can contribute to a common decision process \citep{Vahidov2004,bui1999agent}. More recent discussions of automated decision-making (ADM) likewise emphasize that algorithmic outputs are embedded in organizational processes rather than existing independently of them \citep{EIP2022,Tariq2024a}.
+Automated decision-making (ADM) systems have become an integral part of modern organizations. Following the broad understanding of ADM as computational processes that produce ratings, recommendations, decisions, predictions, or related outputs from data and predefined objectives \citep{EIP2022}, such systems may include machine-learning classifiers, rule-based procedures, optimization models, simulation components, or other algorithmic decision units. In practice, predictive and classification models are among the most common instantiations, supporting tasks such as credit scoring, fraud detection, medical triage, customer churn analysis, and human resources management.
 
-This organizational perspective becomes particularly important when automated decision-making is used to support prediction, classification, or risk assessment. An automated decision-making component can produce a probability, rating, recommendation, or risk score, but such an output does not by itself determine how the result should be acted upon. The appropriate course of action may depend on factors that are external to the predictive model, including organizational priorities, available resources, departmental objectives, regulatory constraints, or the strategic conditions under which the decision is made. Consequently, the same predictive assessment may have different implications under different circumstances. This distinction between the evidence provided by an automated model and the conditions under which that evidence is interpreted is particularly relevant in organizational decision-support settings, where decisions are embedded in broader operational and institutional contexts \citep{Tariq2024a,Deliu2026}.
+Despite these advances, an important limitation remains. The outputs generated by ADM units, such as recommendations, ratings, class probabilities, or risk scores, are often interpreted in isolation from the organizational environment in which decisions are ultimately made \citep{Tariq2024a,Deliu2026}. In practice, a technically plausible automated output rarely provides sufficient guidance for action. The appropriate response depends on contextual factors such as organizational priorities, resource constraints, departmental objectives, regulatory constraints, and prevailing strategic conditions. As a result, identical automated assessments may lead to different decisions under different circumstances.
 
-Cooperation among automated decision components can therefore be understood as more than the aggregation of several predictions. Different components may provide complementary views of the cases under consideration, while the final decision may also need to reflect contextual knowledge provided by domain experts or organizational policies. In multiperson and group decision-support research, heterogeneous sources of information and preferences have traditionally been combined through aggregation, negotiation, and consensus-seeking mechanisms \citep{Salo1995,HerreraViedma2002}. Similar principles can be extended to automated settings, where the cooperating components may be software-based decision units rather than human decision makers. Agent-based decision-support architectures have, for example, explored the coordination of heterogeneous and distributed decision-support components within organizational workflows \citep{Sycara1998,Vahidov2004}.
+This observation highlights the cooperative nature of real-world decision-making \citep{Borkotokey2019,Tariq2024a}. Decisions are seldom based on a single decision agent or automated component. Organizations frequently rely on heterogeneous units developed for different departments, objectives, data sources, or stakeholder groups. Their outputs must therefore be harmonized into a coherent assessment before they can support action. At the same time, domain experts contribute contextual knowledge that cannot always be represented through precise numerical rules. Such knowledge is often expressed through gradual concepts and linguistic assessments that reflect uncertainty, preference, and strategic intent.
 
-Contextual knowledge introduces an additional challenge because it is not always naturally expressed through precise numerical relationships \citep{boos2024conceptualizing}. Experts and decision makers frequently reason in terms such as ``high priority,'' ``moderate relevance,'' ``limited resources,'' or ``strong strategic alignment.'' Fuzzy logic provides a well-established formal basis for representing such concepts through linguistic variables and gradual membership functions \citep{zadeh1975concept}. This capability has made fuzzy approaches particularly useful in decision-support systems where quantitative information must be combined with expert knowledge and imprecise or linguistic assessments \citep{Lamata2020,PerezCanedo2023}. Rather than imposing rigid thresholds, fuzzy representations allow contextual conditions to influence a decision to different degrees, which is well suited to scenarios in which organizational priorities vary with the circumstances.
+Fuzzy logic provides a well-established mathematical framework for representing this type of contextual reasoning \citep{PerezCanedo2023,Lamata2020}. Through fuzzy sets and linguistic variables, experts can model concepts such as urgency, strategic relevance, or suitability in a transparent and interpretable manner. This makes fuzzy approaches particularly attractive for decision-support environments in which quantitative predictions must be complemented by qualitative contextual considerations.
 
-These considerations motivated the development of the Cooperative Automated Decision-Making Systems (CADEMAS) framework proposed by \citet{NovoaHernandez2026}. CADEMAS provides a conceptual framework for coordinating heterogeneous automated decision-making components while explicitly incorporating the context in which their outputs are interpreted. Its central principle is to distinguish between the generation and integration of decision evidence and the contextual evaluation of that evidence. Multiple automated decision units can therefore contribute to a collective assessment, while a separate contextual layer represents organizational priorities, policies, or scenario-dependent considerations. The resulting decision is obtained by combining these two sources of information rather than treating the predictive assessment as an isolated or definitive outcome.
+To address these challenges, \citet{NovoaHernandez2026} proposed \textit{CADEMAS} (Cooperative Automated Decision-Making Systems), a conceptual framework for coordinating heterogeneous automated decision units. The framework separates the generation of decision evidence from its contextual evaluation, allowing outputs from multiple decision units to be integrated and subsequently assessed according to scenario-specific conditions and priorities.
 
-The original CADEMAS formulation was illustrated through a corporate insolvency prediction problem, demonstrating how several automated decision units could contribute to a common assessment while contextual information influenced the resulting prioritization. More recently, \citet{Godz2026} instantiated the framework in an employee-attrition prevention scenario, using machine-learning models developed from different organizational perspectives as the automated decision units and incorporating organizational scenarios through a fuzzy context layer. These studies provide evidence that the framework can be applied to practical decision problems in which predictive information and contextual considerations need to be combined. At the same time, they represent specific instantiations of a framework whose design permits substantially broader combinations of decision units, weighting schemes, contextual models, aggregation operators, and decision policies.
+The practical value of this approach was subsequently demonstrated by \citet{Godz2026}, who instantiated CADEMAS in the context of employee-attrition prevention. In that work, predictive machine-learning models developed from different organizational perspectives were treated as cooperating decision units and combined with contextual organizational policies to support case prioritization. The results showed that the framework could effectively integrate predictive evidence and contextual knowledge within a coherent decision-making process.
 
-This flexibility is both a strength of CADEMAS and a practical challenge. A new application requires decisions about how the automated components should be defined, how their outputs should be aligned and integrated, how contextual conditions should be represented, and how the different sources of information should ultimately influence the prioritization of cases. These choices are conceptually part of the framework, but their implementation must otherwise be developed separately for each application. As the number of configurable elements increases, reproducing and experimenting with alternative CADEMAS configurations can become increasingly demanding for researchers, practitioners, and decision makers. A dedicated software implementation can therefore serve not only as a means of reducing implementation effort, but also as a common environment in which different configurations of the framework can be constructed, inspected, compared, and reproduced.
+Although CADEMAS provides a solid conceptual foundation for cooperative and context-aware decision-making, its practical application typically involves a non-trivial implementation effort. In particular, users must define how case data are distributed across multiple decision units, how their outputs are collected and aligned, how these outputs are integrated, and how the resulting decision proposal is evaluated under explicit contextual assumptions. While these steps are conceptually well-defined, they must be specified and coordinated for each new domain or dataset, creating operational overhead for both researchers and decision-makers.
 
-The need for such an environment is particularly relevant for machine-learning-based instantiations of CADEMAS. Machine-learning models provide effective mechanisms for extracting predictive evidence from historical data, but their outputs introduce additional requirements when they become part of a decision-support process. In particular, users may need to understand why a particular case receives a given prediction and how changes in the underlying information affect the result. Explainable artificial intelligence has consequently become an important area of research for the practical use of machine-learning models, particularly when predictions contribute to decisions with organizational or human consequences \citep{Arrieta2020}. Model-agnostic approaches such as SHAP provide local feature attributions that can help users inspect the factors contributing to individual predictions \citep{Lundberg2017,Lundberg2020}. In a cooperative decision system, however, such explanations are only one part of the analysis: users may also need to understand how the predictive outputs interact with contextual assumptions and whether the resulting prioritization remains stable when those assumptions change.
+Beyond this implementation effort, decision-support settings also require additional capabilities that are often critical in practice, such as assessing the robustness of decisions under alternative policy configurations and providing clear, auditable explanations of how individual recommendations are derived \citep{Arrieta2020}. Influential approaches to case-level explanation, including Shapley-value methods such as SHAP \citep{Lundberg2017,Li2024}, illustrate why local attribution has become central to trustworthy decision support. These requirements are particularly relevant in organizational environments where decisions must be justified, audited, and analyzed under changing contextual conditions. However, they are not explicitly addressed in the original CADEMAS formulation nor in subsequent application-focused instantiations.
 
-Robustness analysis is therefore another relevant capability for context-aware decision support. In CADEMAS, the final prioritization depends not only on predictive evidence but also on contextual definitions, aggregation mechanisms, and the relative importance assigned to predictive and contextual information. Changes in these elements may alter the ordering of cases even when the underlying predictive models remain unchanged. Allowing users to examine such changes can provide information about the stability of the resulting decisions and expose cases whose prioritization is particularly sensitive to the adopted policy configuration \citep{Arrieta2020}.
-
-
-Motivated by these considerations, and with the aim of addressing the practical needs described above, this paper presents CADEMAS-ML, a software tool designed to operationalize a configurable class of CADEMAS systems in which automated decision-making components are implemented as machine-learning models and contextual knowledge is represented through fuzzy logic.
-The tool integrates multiple predictive models into a collective risk assessment, provides configurable mechanisms for representing and aggregating contextual conditions, and combines predictive risk with contextual suitability through an explicit trade-off mechanism. In addition to these core CADEMAS capabilities, this work proposes explainability and robustness analysis as natural extensions of the framework, given their relevance to the practical inspection and assessment of context-aware decisions. Both capabilities are incorporated into CADEMAS-ML as complementary components of the decision-support workflow. The objective is not to provide a reusable software environment through which cooperative and context-aware decision-making configurations can be implemented and analyzed.
-
-The main contributions of this work are as follows:
-
+This paper addresses these requirements by presenting \textbf{CADEMAS-ML}, a software tool that operationalizes the CADEMAS framework for cooperative and context-aware automated decision-making. The contribution is a reusable, auditable implementation---not a new attrition predictor. The main contributions of this work are as follows:
 \begin{itemize}
-    \item \textit{A software implementation of CADEMAS.} CADEMAS-ML provides a reusable and configurable implementation of a class of CADEMAS systems in which machine-learning models act as automated decision-making components and fuzzy logic is used to represent contextual knowledge.
-    
-    \item \textit{Configurable cooperative and context-aware decision support.} The tool allows for integrating heterogeneous predictive models, performance-based model weighting, fuzzy contextual representations, alternative aggregation mechanisms, and an explicit trade-off between predictive risk and contextual suitability.
-    
-    \item \textit{Explainability and robustness analysis.} The tool extends the decision-support workflow with case-level explanations and mechanisms for analyzing how prioritization outcomes change under alternative contextual and policy configurations.
-    
-    \item \textit{A reproducible software demonstration.} The capabilities of the tool are demonstrated in an employee-attrition scenario involving multiple organizational predictive models and alternative contextual configurations, illustrating how identical predictive evidence can lead to different prioritization outcomes when the decision context changes.
+\item The development of CADEMAS-ML, an open-source software tool that implements the CADEMAS framework for context-aware cooperative decision-making using machine-learning models as automated decision units.
+\item The integration of predictive analytics, fuzzy contextual reasoning, and explainable decision support within a unified prioritization process, enabling transparent justification and case-level interpretability through local model-agnostic attribution.
+\item A robustness-analysis module that allows decision-makers to assess the sensitivity and stability of prioritization outcomes under alternative contextual policies and preference configurations.
+\item A reproducible software demonstration in an employee-attrition prevention scenario involving multiple predictive models and an explicit organizational context.
 \end{itemize}
 
-The resulting tool provides a bridge between the conceptual principles of CADEMAS and their practical use in machine-learning-based decision-support applications. Rather than restricting the framework to a single predefined configuration, CADEMAS-ML makes several of its principal design choices explicit and configurable. This allows users (e.g., practitioners and decision-makers) to construct alternative decision policies while preserving the separation between predictive evidence and contextual evaluation that characterizes CADEMAS. The inclusion of explainability and robustness analysis further supports a decision-support workflow in which a prioritization is not only generated, but can also be inspected, justified, and examined under alternative assumptions.
+The explainability and robustness capabilities introduced in this work are central to its operational contribution. They complement the original CADEMAS formulation, which is primarily architectural, as well as prior application-oriented instantiations, by supporting an interactive decision-support workflow in which users can inspect the rationale behind individual prioritizations and assess their stability under alternative contextual assumptions. This shifts the focus from producing a single prioritization outcome to enabling its interpretation, justification, and analysis in practice.
 
-The remainder of the paper is organized as follows. Section~\ref{sec:background} reviews the CADEMAS framework and related work on cooperative and fuzzy decision-support systems. Section~\ref{sec:methods} presents the architecture and main components of CADEMAS-ML. Section~\ref{sec:results} reports the outputs produced by its modules. Both sections use an employee-attrition case study to illustrate the functionality and operation of the tool. Finally, Section~\ref{sec:discussion} summarizes the main findings and discusses the implications of the proposed tool and possible directions for future work.
+The remainder of the paper is organized as follows. Section~\ref{sec:background} reviews the CADEMAS framework and related decision-support work. Section~\ref{sec:methods} describes the implementation, operation, and employee-attrition demonstration setup. Section~\ref{sec:results} presents the outputs exposed by the user-facing modules. Section~\ref{sec:discussion} discusses the practical and research implications of the software, its limitations, and directions for further development.
 
 \section{Background and related works}\label{sec:background}
 
@@ -135,12 +126,12 @@ As introduced in Section~\ref{sec:intro}, CADEMAS \citep{NovoaHernandez2026} pro
 
 To formalize this idea for the prioritization setting addressed in this paper, let $\mathcal{X} = \{x_1, \dots, x_n\}$ denote the case dataset, and let $\mathcal{A} = \{A_1, \dots, A_K\}$ represent a collection of ADM units. In the general CADEMAS framework, each $A_k$ may produce an output $o_k(x_i)$ whose semantics are not necessarily probabilistic: it may be a class, a score, a ranking, a symbolic recommendation, a rule activation, or another decision object. A decision-integration layer is therefore responsible for transforming these heterogeneous outputs into a shared representation and synthesizing them into an integrated proposal.
 
-A relevant class of CADEMAS comprises systems in which the ADM units are implemented as predictive models $\mathcal{M}=\{M_1,\ldots,M_K\}$. In the binary classification setting considered in this paper, the harmonized output of model $M_k$ for case $x_i$ is a positive-class probability $\hat{p}_{ik}\in[0,1]$. Since the models may differ in performance and trustworthiness, each $M_k$ is assigned a confidence weight $w_k\geq0$, with $\sum_{k=1}^{K}w_k=1$. The weights can be derived from validation metrics, expert judgment, or governance constraints. Using the notation retained throughout the rest of the article, the integrated predictive risk is
+CADEMAS-ML implements the specialization in which the ADM units are predictive models $\mathcal{M}=\{M_1,\ldots,M_K\}$ and the harmonized output of model $M_k$ for case $x_i$ is a positive-class probability $\hat{p}_{ik}\in[0,1]$. Since the models may differ in performance and trustworthiness, each $M_k$ is assigned a confidence weight $w_k\geq0$, with $\sum_{k=1}^{K}w_k=1$. The weights can be derived from validation metrics, expert judgment, or governance constraints. Using the notation retained throughout the rest of the article, the integrated predictive risk is
 \begin{equation}
 R_i = \sum_{k=1}^{K} w_k \hat{p}_{ik}.
 \end{equation}
 
-Rather than treating the integrated output as the final decision criterion, CADEMAS introduces an explicit contextual layer that captures organizational priorities, policies, constraints, and scenario-dependent considerations. The original framework does not prescribe a single context formalism. Context may be represented through crisp rules, utility functions, regulatory constraints, fuzzy propositions, or other evaluative mechanisms. In the machine-learning-based setting considered here, fuzzy logic provides one possible mechanism because it supports gradual degrees of satisfaction instead of binary rules. Let $\mathcal{Q}=\{r_1,\ldots,r_L\}$ denote the contextual rules and let $\mu_r(x_i)\in[0,1]$ be the degree to which case $x_i$ satisfies rule $r$. These values are aggregated into the context-alignment score
+Rather than treating the integrated output as the final decision criterion, CADEMAS introduces an explicit contextual layer that captures organizational priorities, policies, constraints, and scenario-dependent considerations. The original framework does not prescribe a single context formalism. Context may be represented through crisp rules, utility functions, regulatory constraints, fuzzy propositions, or other evaluative mechanisms. CADEMAS-ML follows the attrition application of \citet{Godz2026} and uses fuzzy logic because it supports gradual degrees of satisfaction instead of binary rules. Let $\mathcal{Q}=\{r_1,\ldots,r_L\}$ denote the contextual rules and let $\mu_r(x_i)\in[0,1]$ be the degree to which case $x_i$ satisfies rule $r$. These values are aggregated into the context-alignment score
 \begin{equation}
 C_i = H\big(\mu_{r_1}(x_i), \dots, \mu_{r_L}(x_i)\big),
 \end{equation}
@@ -152,12 +143,13 @@ P_i(\lambda)=\lambda R_i+(1-\lambda)C_i,\qquad \lambda\in[0,1].
 \end{equation}
 The balance parameter $\lambda$ makes the trade-off explicit. A key design principle inherited from CADEMAS is the separation between the integrated ADM proposal and its contextual interpretation. In this specialization, $R_i$, $C_i$, and $P_i(\lambda)$ distinguish what the predictive models suggest, what the organization considers relevant, and how both sources are combined.
 
-An employee-attrition prevention system developed by \citet{Godz2026} provides an example of this machine-learning-based class of CADEMAS. In that application, multiple machine-learning models were trained on different organizational perspectives, including Human Resources, Finance, Operations and Development, and a wellbeing-oriented perspective identified as Culture and Wellbeing in the software bundle. Each model acts as an ADM unit, and their outputs are combined using weights derived from validation performance, specifically AUC. In parallel, the contextual layer encodes scenario-dependent organizational priorities (e.g., economic crisis or digital transformation settings) using fuzzy membership functions and rule-based structures.
+The framework was instantiated in employee-attrition prevention by \citet{Godz2026}. In that application, multiple machine-learning models were trained on different organizational perspectives, including Human Resources, Finance, Operations and Development, and a wellbeing-oriented perspective identified as Culture and Wellbeing in the software bundle. Each model acts as an ADM unit, and their outputs are combined using weights derived from validation performance, specifically AUC. In parallel, the contextual layer encodes scenario-dependent organizational priorities (e.g., economic crisis or digital transformation settings) using fuzzy membership functions and rule-based structures.
 
-Although this instantiation demonstrates the practical use of machine-learning-based ADM units within CADEMAS, it represents only one possible configuration. In general, CADEMAS is designed to remain flexible across several dimensions, including the type of automated decision units, the semantics of their outputs, the mechanism used for aligning heterogeneous decision signals, the integration strategy, and the way contextual information is incorporated into the final decision.
+Although this instantiation demonstrates the practicality of the framework, it represents only one possible configuration. In general, CADEMAS is designed to remain flexible across several dimensions, including the type of automated decision units, the semantics of their outputs, the mechanism used for aligning heterogeneous decision signals, the integration strategy, and the way contextual information is incorporated into the final decision.
 
-The formulation above therefore leaves several design choices configurable. Confidence weights can be derived from different performance criteria, aggregation strategies may reflect alternative decision policies, and the final prioritization can be adjusted to capture different trade-offs between predictive evidence and contextual constraints. This configurability is essential for adapting CADEMAS to heterogeneous organizational environments and motivates the need for a software layer that operationalizes these design choices in a systematic and reusable manner.
+CADEMAS-ML implements specific design choices for these components to provide a concrete and reproducible software realization of the framework. Within the general CADEMAS formulation, however, these elements remain configurable: confidence weights can be derived from different performance criteria, aggregation strategies may reflect alternative decision policies, and the final prioritization can be adjusted to capture different trade-offs between predictive evidence and contextual constraints.
 
+This configurability is essential for adapting CADEMAS to heterogeneous organizational environments and motivates the need for a software layer that operationalizes these design decisions in a systematic and reusable manner.
 
 \subsection{Related frameworks and decision-support applications}\label{sec:related}
 
@@ -338,7 +330,7 @@ The entry point is the \textit{Home} module and the sidebar upload controls (Fig
 \label{fig:home_upload}
 \end{figure}
 
-The user provides the four inputs required by the architecture---model-metadata JSON, context JSON, MOJO models, and the case dataset---or loads the ready-made example distributed in the repository\footnote{\url{https://github.com/pnovoa/cademas-app/tree/main/example_attrition}.}. The application \textit{Help} panel documents the same bundle. Before execution, the user selects the validation metric used for model weighting, chooses one of the uploaded context specifications, sets the balance parameter $\lambda$, and triggers \textit{Run analysis}. CADEMAS-ML then executes the pipeline defined in Section~\ref{sec:implementation}: MOJO inference, fuzzy context evaluation, and score integration. Table~\ref{tab:tool_model_weights} summarizes the four pre-trained ADM units included in the example and the AUC-based weights recomputed during the run.
+The user provides the four inputs required by the architecture---model-metadata JSON, context JSON, MOJO models, and the case dataset---or loads the ready-made example distributed under \texttt{example\_attrition/}\footnote{\url{https://github.com/pnovoa/cademas-app/tree/main/example_attrition}.}. The application \textit{Help} panel documents the same bundle. Before execution, the user selects the validation metric used for model weighting, chooses one of the uploaded context specifications, sets the balance parameter $\lambda$, and triggers \textit{Run analysis}. CADEMAS-ML then executes the pipeline defined in Section~\ref{sec:implementation}: MOJO inference, fuzzy context evaluation, and score integration. Table~\ref{tab:tool_model_weights} summarizes the four pre-trained ADM units included in the example and the AUC-based weights recomputed during the run.
 
 \begin{table}[!t]
 \tbl{Models used in the attrition example and AUC-based weights computed by CADEMAS-ML. The \textit{AutoML model} column summarizes the artifact exported by H2O AutoML.}
@@ -488,18 +480,924 @@ CADEMAS-ML is available at \url{https://github.com/pnovoa/cademas-app} under an 
 
 Supplementary Material~S1 accompanies this article and provides the complete specification of the four application inputs, field-level constraints, cross-file consistency requirements, and minimal configuration examples.
 
-\section*{Author contributions}  
+\section*{Author contributions}
 
 Pavel Novoa-Hern\'{a}ndez: conceptualization, methodology, software, validation, writing -- original draft, visualization. David A. Pelta: conceptualization, methodology, supervision, writing -- review and editing.
 
-\bibliographystyle{apacite}
-\bibliography{biblio}
+\begin{thebibliography}{}
+
+\bibitem [\protect \citeauthoryear {%
+Abdulgader%
+, Eid%
+\BCBL {}\ \BBA {} Daneshvar~Rouyendegh%
+}{%
+Abdulgader%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2018}}%
+}]{%
+Abdulgader2018}
+\APACinsertmetastar {%
+Abdulgader2018}%
+\begin{APACrefauthors}%
+Abdulgader, F\BPBI S.%
+, Eid, R.%
+\BCBL {}\ \BBA {} Daneshvar~Rouyendegh, B.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2018}{{\APACmonth{11}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Development of Decision Support Model for Selecting a
+  Maintenance Plan Using a Fuzzy {MCDM} Approach: A Theoretical Framework}
+  {Development of decision support model for selecting a maintenance plan using
+  a fuzzy {MCDM} approach: A theoretical framework}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Applied Computational Intelligence and Soft
+  Computing}{2018}{}{1--14}.
+\newblock
+\begin{APACrefDOI} \doi{10.1155/2018/9346945} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Barredo~Arrieta%
+\ \protect \BOthers {.}}{%
+Barredo~Arrieta%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2020}}%
+}]{%
+Arrieta2020}
+\APACinsertmetastar {%
+Arrieta2020}%
+\begin{APACrefauthors}%
+Barredo~Arrieta, A.%
+, D{\'i}az-Rodr{\'i}guez, N.%
+, Del~Ser, J.%
+, Bennetot, A.%
+, Tabik, S.%
+, Barbado, A.%
+\BDBL {}Herrera, F.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2020}{{\APACmonth{06}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Explainable {Artificial Intelligence} ({XAI}): Concepts,
+  Taxonomies, Opportunities and Challenges Toward Responsible {AI}}
+  {Explainable {Artificial Intelligence} ({XAI}): Concepts, taxonomies,
+  opportunities and challenges toward responsible {AI}}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Information Fusion}{58}{}{82--115}.
+\newblock
+\begin{APACrefDOI} \doi{10.1016/j.inffus.2019.12.012} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Borkotokey%
+, Hazarika%
+\BCBL {}\ \BBA {} Mesiar%
+}{%
+Borkotokey%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2019}}%
+}]{%
+Borkotokey2019}
+\APACinsertmetastar {%
+Borkotokey2019}%
+\begin{APACrefauthors}%
+Borkotokey, S.%
+, Hazarika, P.%
+\BCBL {}\ \BBA {} Mesiar, R.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2019}{{\APACmonth{09}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Cooperative Games with Multiple Attributes} {Cooperative
+  games with multiple attributes}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{International Journal of General
+  Systems}{48}{8}{825--842}.
+\newblock
+\begin{APACrefDOI} \doi{10.1080/03081079.2019.1659792} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Chekry%
+\ \protect \BOthers {.}}{%
+Chekry%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2024}}%
+}]{%
+Chekry2024}
+\APACinsertmetastar {%
+Chekry2024}%
+\begin{APACrefauthors}%
+Chekry, A.%
+, Bakkas, J.%
+, Hanine, M.%
+, Montero, E\BPBI C.%
+, {Garat de Marin}, M\BPBI S.%
+\BCBL {}\ \BBA {} Ashraf, I.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2024}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {{PyDEMATEL}: A {Python}-based tool implementing
+  {DEMATEL} and fuzzy {DEMATEL} methods for improved decision making}
+  {{PyDEMATEL}: A {Python}-based tool implementing {DEMATEL} and fuzzy
+  {DEMATEL} methods for improved decision making}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{SoftwareX}{}{}{}.
+\newblock
+\begin{APACrefDOI} \doi{10.1016/j.softx.2024.101889} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Deliu%
+\ \BBA {} Moldovan%
+}{%
+Deliu%
+\ \BBA {} Moldovan%
+}{%
+{\protect \APACyear {2026}}%
+}]{%
+Deliu2026}
+\APACinsertmetastar {%
+Deliu2026}%
+\begin{APACrefauthors}%
+Deliu, D.%
+\BCBT {}\ \BBA {} Moldovan, A\BHBI L.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2026}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Human--{AI} Collaboration and Cognitive Flexibility in
+  Industry 6.0: A Framework for Purposeful Decision-Making in Innovation and
+  Project Management} {Human--{AI} collaboration and cognitive flexibility in
+  industry 6.0: A framework for purposeful decision-making in innovation and
+  project management}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{International Journal of Managing Projects in
+  Business}{}{}{}.
+\newblock
+\begin{APACrefDOI} \doi{10.1108/ijmpb-10-2025-0459} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+{European Law Institute}%
+}{%
+{European Law Institute}%
+}{%
+{\protect \APACyear {2022}}%
+}]{%
+EIP2022}
+\APACinsertmetastar {%
+EIP2022}%
+\begin{APACrefauthors}%
+{European Law Institute}.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2022}{}{}.
+\newblock
+\APACrefbtitle {{Guiding Principles for Automated Decision-Making in the EU}}
+  {{Guiding Principles for Automated Decision-Making in the EU}}\ \APACbVolEdTR
+  {}{ELI Innovation Paper}.
+\newblock
+\APACaddressInstitution{}{{European Law Institute (ELI)}}.
+\newblock
+\APACrefnote{ISBN 978-3-9505192-7-3. Available at
+  \url{https://www.europeanlawinstitute.eu/fileadmin/user_upload/p_eli/Publications/ELI_Innovation_Paper_on_Guiding_Principles_for_ADM_in_the_EU.pdf}
+  (accessed 15 January 2026)}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Godz%
+, Novoa-Hernández%
+\BCBL {}\ \BBA {} Pelta%
+}{%
+Godz%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2026}}%
+}]{%
+Godz2026}
+\APACinsertmetastar {%
+Godz2026}%
+\begin{APACrefauthors}%
+Godz, M.%
+, Novoa-Hernández, P.%
+\BCBL {}\ \BBA {} Pelta, D\BPBI A.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2026}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {A Cooperative and Context-Aware Approach for Employee
+  Attrition Prevention} {A cooperative and context-aware approach
+  for employee attrition prevention}.{\BBCQ}
+\newblock
+\BIn{} \APACrefbtitle {Information Processing and Management of Uncertainty in
+  Knowledge-Based Systems} {Information processing and management of
+  uncertainty in knowledge-based systems}\ (\BPGS\ 203--217).
+\newblock
+\APACaddressPublisher{}{Springer Nature Switzerland}.
+\newblock
+\begin{APACrefDOI} \doi{10.1007/978-3-032-29000-7_15} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Grazioso%
+, Caporaso%
+\BCBL {}\ \BBA {} {di Gironimo}%
+}{%
+Grazioso%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2023}}%
+}]{%
+Grazioso2023}
+\APACinsertmetastar {%
+Grazioso2023}%
+\begin{APACrefauthors}%
+Grazioso, S.%
+, Caporaso, T.%
+\BCBL {}\ \BBA {} {di Gironimo}, G.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2023}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Decision support in engineering design: the {ELIGERE}
+  open source software platform} {Decision support in engineering design: the
+  {ELIGERE} open source software platform}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{International Journal on Interactive Design and
+  Manufacturing ({IJIDeM})}{}{}{}.
+\newblock
+\begin{APACrefDOI} \doi{10.1007/s12008-023-01568-2} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+H2O.ai%
+}{%
+H2O.ai%
+}{%
+{\protect \APACyear {2026}}%
+}]{%
+H2O.ai2026}
+\APACinsertmetastar {%
+H2O.ai2026}%
+\begin{APACrefauthors}%
+H2O.ai.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2026}{}{}.
+\newblock
+\APACrefbtitle {H2O.ai: The Open Source AI Platform.} {H2o.ai: The open source
+  ai platform.}
+\newblock
+\begin{APACrefURL} \url{https://www.h2o.ai/} \end{APACrefURL}
+\newblock
+\APACrefnote{Accessed: 2026-01-12}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Kacprzyk%
+, Sirbiladze%
+\BCBL {}\ \BBA {} Tsulaia%
+}{%
+Kacprzyk%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2022}}%
+}]{%
+Kacprzyk2022}
+\APACinsertmetastar {%
+Kacprzyk2022}%
+\begin{APACrefauthors}%
+Kacprzyk, J.%
+, Sirbiladze, G.%
+\BCBL {}\ \BBA {} Tsulaia, G.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2022}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Associated Fuzzy Probabilities in {MADM} with
+  Interacting Attributes: Application in Multi-objective Facility Location
+  Selection Problem} {Associated fuzzy probabilities in {MADM} with interacting
+  attributes: Application in multi-objective facility location selection
+  problem}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{International Journal of Information Technology \&
+  Decision Making}{21}{4}{1155--1188}.
+\newblock
+\begin{APACrefDOI} \doi{10.1142/s0219622022500146} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Lamata%
+, Pelta%
+\BCBL {}\ \BBA {} Verdegay%
+}{%
+Lamata%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2020}}%
+}]{%
+Lamata2020}
+\APACinsertmetastar {%
+Lamata2020}%
+\begin{APACrefauthors}%
+Lamata, M\BPBI T.%
+, Pelta, D\BPBI A.%
+\BCBL {}\ \BBA {} Verdegay, J\BPBI L.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2020}{oct}{}.
+\newblock
+{\BBOQ}\APACrefatitle {The Role of the Context in Decision and Optimization
+  Problems} {The role of the context in decision and optimization
+  problems}.{\BBCQ}
+\newblock
+\BIn{} \APACrefbtitle {Fuzzy Approaches for Soft Computing and Approximate
+  Reasoning: Theories and Applications} {Fuzzy approaches for soft computing
+  and approximate reasoning: Theories and applications}\ (\BPGS\ 75--84).
+\newblock
+\APACaddressPublisher{}{Springer International Publishing}.
+\newblock
+\begin{APACrefDOI} \doi{10.1007/978-3-030-54341-9_7} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Li%
+, Sun%
+, Huang%
+\BCBL {}\ \BBA {} Chen%
+}{%
+Li%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2024}}%
+}]{%
+Li2024}
+\APACinsertmetastar {%
+Li2024}%
+\begin{APACrefauthors}%
+Li, M.%
+, Sun, H.%
+, Huang, Y.%
+\BCBL {}\ \BBA {} Chen, H.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2024}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Shapley Value: From Cooperative Game to Explainable
+  Artificial Intelligence} {Shapley value: From cooperative game to explainable
+  artificial intelligence}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Autonomous Intelligent Systems}{4}{1}{2}.
+\newblock
+\begin{APACrefDOI} \doi{10.1007/s43684-023-00060-8} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Lundberg%
+\ \BBA {} Lee%
+}{%
+Lundberg%
+\ \BBA {} Lee%
+}{%
+{\protect \APACyear {2017}}%
+}]{%
+Lundberg2017}
+\APACinsertmetastar {%
+Lundberg2017}%
+\begin{APACrefauthors}%
+Lundberg, S\BPBI M.%
+\BCBT {}\ \BBA {} Lee, S\BHBI I.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2017}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {A Unified Approach to Interpreting Model Predictions} {A
+  unified approach to interpreting model predictions}.{\BBCQ}
+\newblock
+\BIn{} \APACrefbtitle {Advances in Neural Information Processing Systems}
+  {Advances in neural information processing systems}\ (\BVOL~30, \BPGS\
+  4765--4774).
+\newblock
+\APACaddressPublisher{}{Curran Associates}.
+\newblock
+\begin{APACrefURL}
+  \url{https://proceedings.neurips.cc/paper/2017/hash/8a20a8621978632d76c43dfd28b67767-Abstract.html}
+  \end{APACrefURL}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Novoa-Hern{\'{a}}ndez%
+\ \BBA {} Pelta%
+}{%
+Novoa-Hern{\'{a}}ndez%
+\ \BBA {} Pelta%
+}{%
+{\protect \APACyear {2026}}%
+}]{%
+cademasml2026}
+\APACinsertmetastar {%
+cademasml2026}%
+\begin{APACrefauthors}%
+Novoa-Hern{\'{a}}ndez, P.%
+\BCBT {}\ \BBA {} Pelta, D\BPBI A.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2026}{}{}.
+\newblock
+\APACrefbtitle {{CADEMAS-ML}: A Software Tool for Context-Aware Cooperative
+  Automated Decision-Making.} {{CADEMAS-ML}: A software tool for context-aware
+  cooperative automated decision-making.}
+\newblock
+\APAChowpublished {Computer software}.
+\newblock
+\APACrefnote{MIT License. \url{https://github.com/pnovoa/cademas-app}}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Novoa-Hernández%
+, Godz%
+\BCBL {}\ \BBA {} Pelta%
+}{%
+Novoa-Hernández%
+, Godz%
+\BCBL {}\ \BBA {} Pelta%
+}{%
+{\protect \APACyear {2026}}%
+}]{%
+novoa2026aggregation}
+\APACinsertmetastar {%
+novoa2026aggregation}%
+\begin{APACrefauthors}%
+Novoa-Hernández, P.%
+, Godz, M.%
+\BCBL {}\ \BBA {} Pelta, D\BPBI A.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2026}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Aggregation Semantics for Prioritization in Cooperative
+  Automated Decision-Making} {Aggregation semantics for prioritization in
+  cooperative automated decision-making}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Mathematics}{14}{18}{}.
+\newblock
+\begin{APACrefDOI} \doi{10.3390/math14183397} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Novoa-Hernández%
+, Pelta%
+, Godz%
+, Verdegay%
+\BCBL {}\ \BBA {} Buendia-Carrillo%
+}{%
+Novoa-Hernández%
+, Pelta%
+\BCBL {}\ \protect \BOthers {.}}{%
+{\protect \APACyear {2026}}%
+}]{%
+NovoaHernandez2026}
+\APACinsertmetastar {%
+NovoaHernandez2026}%
+\begin{APACrefauthors}%
+Novoa-Hernández, P.%
+, Pelta, D\BPBI A.%
+, Godz, M.%
+, Verdegay, J\BPBI L.%
+\BCBL {}\ \BBA {} Buendia-Carrillo, D.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2026}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {CADEMAS – A Framework for Cooperative Automated
+  Decision-Making Systems} {Cademas – a framework for cooperative automated
+  decision-making systems}.{\BBCQ}
+\newblock
+\BIn{} \APACrefbtitle {2026 IEEE Conference on Artificial Intelligence (CAI)}
+  {2026 ieee conference on artificial intelligence (cai)}\ (\BPG~756-761).
+\newblock
+\begin{APACrefDOI} \doi{10.1109/CAI68641.2026.11536392} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+\"Ozkurt%
+, Canay%
+, Tun{\c{c}}%
+, Aydin%
+\BCBL {}\ \BBA {} Velio{\u{g}}lu%
+}{%
+\"Ozkurt%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2025}}%
+}]{%
+Ozkurt2025}
+\APACinsertmetastar {%
+Ozkurt2025}%
+\begin{APACrefauthors}%
+\"Ozkurt, C.%
+, Canay, O.%
+, Tun{\c{c}}, E\BPBI A.%
+, Aydin, E.%
+\BCBL {}\ \BBA {} Velio{\u{g}}lu, B\BPBI S.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2025}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Renewable Energy Source Ranking and Analysis Using Fuzzy
+  {MCDM}, {ML}, and {XAI} Techniques} {Renewable energy source ranking and
+  analysis using fuzzy {MCDM}, {ML}, and {XAI} techniques}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Baltic Journal of Modern Computing}{13}{3}{656--679}.
+\newblock
+\begin{APACrefDOI} \doi{10.22364/bjmc.2025.13.3.06} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+P{\'{e}}rez-Ca{\~{n}}edo%
+, Porras%
+, Pelta%
+\BCBL {}\ \BBA {} Verdegay%
+}{%
+P{\'{e}}rez-Ca{\~{n}}edo%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2023}}%
+}]{%
+PerezCanedo2023}
+\APACinsertmetastar {%
+PerezCanedo2023}%
+\begin{APACrefauthors}%
+P{\'{e}}rez-Ca{\~{n}}edo, B.%
+, Porras, C.%
+, Pelta, D\BPBI A.%
+\BCBL {}\ \BBA {} Verdegay, J\BPBI L.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2023}{may}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Modeling Contexts as Fuzzy Propositions in Optimization
+  Problems} {Modeling contexts as fuzzy propositions in optimization
+  problems}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{{IEEE} Transactions on Fuzzy
+  Systems}{31}{5}{1474--1483}.
+\newblock
+\begin{APACrefDOI} \doi{10.1109/tfuzz.2022.3203786} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+P{\'e}rez-Dom{\'\i}nguez%
+, Callejas-Cuervo%
+\BCBL {}\ \BBA {} Garc{\'\i}a-Luna%
+}{%
+P{\'e}rez-Dom{\'\i}nguez%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2024}}%
+}]{%
+PerezDominguez2024}
+\APACinsertmetastar {%
+PerezDominguez2024}%
+\begin{APACrefauthors}%
+P{\'e}rez-Dom{\'\i}nguez, L.%
+, Callejas-Cuervo, M.%
+\BCBL {}\ \BBA {} Garc{\'\i}a-Luna, F.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2024}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Intuitionistic Fuzzy Dimensional Analysis in
+  Multi-Criteria Decision-Making: A Computational Approach} {Intuitionistic
+  fuzzy dimensional analysis in multi-criteria decision-making: A computational
+  approach}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{IEEE Access}{12}{}{1--15}.
+\newblock
+\begin{APACrefDOI} \doi{10.1109/ACCESS.2024.3422616} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Roszkowska%
+, Jefma{\'n}ski%
+, Dudek%
+\BCBL {}\ \BBA {} Kusterka-Jefma{\'n}ska%
+}{%
+Roszkowska%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2024}}%
+}]{%
+Roszkowska2024}
+\APACinsertmetastar {%
+Roszkowska2024}%
+\begin{APACrefauthors}%
+Roszkowska, E.%
+, Jefma{\'n}ski, B.%
+, Dudek, A.%
+\BCBL {}\ \BBA {} Kusterka-Jefma{\'n}ska, M.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2024}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {{IFMCDM}: An {R} package for intuitionistic fuzzy
+  multi-criteria decision making methods} {{IFMCDM}: An {R} package for
+  intuitionistic fuzzy multi-criteria decision making methods}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{SoftwareX}{26}{}{101676}.
+\newblock
+\begin{APACrefDOI} \doi{10.1016/j.softx.2024.101721} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Sahraei%
+\ \protect \BOthers {.}}{%
+Sahraei%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2022}}%
+}]{%
+Sahraei2022}
+\APACinsertmetastar {%
+Sahraei2022}%
+\begin{APACrefauthors}%
+Sahraei, R.%
+, Kanani-Sadat, Y.%
+, Homayouni, S.%
+, Safari, A.%
+, Oubennaceur, K.%
+\BCBL {}\ \BBA {} Chokmani, K.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2022}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {A Novel Hybrid {GIS}-Based Multi-Criteria
+  Decision-Making Approach for Flood Susceptibility Analysis in Large Ungauged
+  Watersheds} {A novel hybrid {GIS}-based multi-criteria decision-making
+  approach for flood susceptibility analysis in large ungauged
+  watersheds}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Journal of Flood Risk Management}{16}{2}{e12871}.
+\newblock
+\begin{APACrefDOI} \doi{10.1111/jfr3.12871} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+{Streamlit Inc.}%
+}{%
+{Streamlit Inc.}%
+}{%
+{\protect \APACyear {2026}}%
+}]{%
+streamlit}
+\APACinsertmetastar {%
+streamlit}%
+\begin{APACrefauthors}%
+{Streamlit Inc.}%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2026}{}{}.
+\newblock
+\APACrefbtitle {Streamlit.} {Streamlit.}
+\newblock
+\APAChowpublished {Software}.
+\newblock
+\begin{APACrefURL} \url{https://streamlit.io} \end{APACrefURL}
+\newblock
+\APACrefnote{Version 1.53.0}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Subhash%
+}{%
+Subhash%
+}{%
+{\protect \APACyear {2017}}%
+}]{%
+IBMHRKaggle}
+\APACinsertmetastar {%
+IBMHRKaggle}%
+\begin{APACrefauthors}%
+Subhash, P.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2017}{}{}.
+\newblock
+\APACrefbtitle {{IBM} {HR} Analytics Employee Attrition and Performance.}
+  {{IBM} {HR} analytics employee attrition and performance.}
+\newblock
+\APAChowpublished {Kaggle dataset}.
+\newblock
+\APACrefnote{\url{https://www.kaggle.com/datasets/pavansubhasht/ibm-hr-analytics-attrition-dataset}
+  (accessed 19 March 2026)}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Sun%
+, Huang%
+\BCBL {}\ \BBA {} Pompili%
+}{%
+Sun%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2024}}%
+}]{%
+Sun2024}
+\APACinsertmetastar {%
+Sun2024}%
+\begin{APACrefauthors}%
+Sun, C.%
+, Huang, S.%
+\BCBL {}\ \BBA {} Pompili, D.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2024}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {{LLM}-based Multi-Agent Reinforcement Learning: Current
+  and Future Directions} {{LLM}-based multi-agent reinforcement learning:
+  Current and future directions}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{AI}{5}{3}{1234--1252}.
+\newblock
+\begin{APACrefDOI} \doi{10.3390/ai5030065} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Tariq%
+, Chhetri%
+, Nepal%
+\BCBL {}\ \BBA {} Paris%
+}{%
+Tariq%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2024}}%
+}]{%
+Tariq2024a}
+\APACinsertmetastar {%
+Tariq2024a}%
+\begin{APACrefauthors}%
+Tariq, S.%
+, Chhetri, M\BPBI B.%
+, Nepal, S.%
+\BCBL {}\ \BBA {} Paris, C.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2024}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {{A2C}: A Modular Multi-stage Collaborative Decision
+  Framework for Human-{AI} Teams} {{A2C}: A modular multi-stage collaborative
+  decision framework for human-{AI} teams}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Expert Systems with Applications}{238}{}{122334}.
+\newblock
+\begin{APACrefDOI} \doi{10.1016/j.eswa.2023.122334} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+VanderPlas%
+\ \protect \BOthers {.}}{%
+VanderPlas%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2018}}%
+}]{%
+VanderPlas2018}
+\APACinsertmetastar {%
+VanderPlas2018}%
+\begin{APACrefauthors}%
+VanderPlas, J.%
+, Granger, B.%
+, Heer, J.%
+, Moritz, D.%
+, Wongsuphasawat, K.%
+, Satyanarayan, A.%
+\BDBL {}Sievert, S.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2018}{{\APACmonth{12}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Altair: Interactive Statistical Visualizations for
+  Python} {Altair: Interactive statistical visualizations for python}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Journal of Open Source Software}{3}{32}{1057}.
+\newblock
+\begin{APACrefDOI} \doi{10.21105/joss.01057} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Wi{\k{e}}ckowski%
+, Kizielewicz%
+\BCBL {}\ \BBA {} Sa{\l}abun%
+}{%
+Wi{\k{e}}ckowski%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2022}}%
+}]{%
+Wieckowski2022}
+\APACinsertmetastar {%
+Wieckowski2022}%
+\begin{APACrefauthors}%
+Wi{\k{e}}ckowski, J.%
+, Kizielewicz, B.%
+\BCBL {}\ \BBA {} Sa{\l}abun, W.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2022}{{\APACmonth{12}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {{pyFDM}: A {Python} library for uncertainty decision
+  analysis methods} {{pyFDM}: A {Python} library for uncertainty decision
+  analysis methods}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{SoftwareX}{20}{}{101271}.
+\newblock
+\begin{APACrefDOI} \doi{10.1016/j.softx.2022.101271} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Wi{\k{e}}ckowski%
+, Kizielewicz%
+\BCBL {}\ \BBA {} Sa{\l}abun%
+}{%
+Wi{\k{e}}ckowski%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2023}}%
+}]{%
+Wieckowski2023}
+\APACinsertmetastar {%
+Wieckowski2023}%
+\begin{APACrefauthors}%
+Wi{\k{e}}ckowski, J.%
+, Kizielewicz, B.%
+\BCBL {}\ \BBA {} Sa{\l}abun, W.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2023}{{\APACmonth{05}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Handling decision-making in intuitionistic fuzzy
+  environment: {PyIFDM} package} {Handling decision-making in intuitionistic
+  fuzzy environment: {PyIFDM} package}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{SoftwareX}{22}{}{101344}.
+\newblock
+\begin{APACrefDOI} \doi{10.1016/j.softx.2023.101344} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Wi{\k{e}}ckowski%
+\ \BBA {} Sa{\l}abun%
+}{%
+Wi{\k{e}}ckowski%
+\ \BBA {} Sa{\l}abun%
+}{%
+{\protect \APACyear {2024}}%
+}]{%
+Wieckowski2024}
+\APACinsertmetastar {%
+Wieckowski2024}%
+\begin{APACrefauthors}%
+Wi{\k{e}}ckowski, J.%
+\BCBT {}\ \BBA {} Sa{\l}abun, W.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2024}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {{MakeDecision}: Online system for the graphical design
+  of decision-making models in crisp and fuzzy environments} {{MakeDecision}:
+  Online system for the graphical design of decision-making models in crisp and
+  fuzzy environments}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{SoftwareX}{}{}{}.
+\newblock
+\begin{APACrefDOI} \doi{10.1016/j.softx.2024.101658} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\end{thebibliography}
 
 \section*{Notes on contributors}
 
-\noindent\textbf{Pavel Novoa-Hern\'{a}ndez} is Associate Professor in the Department of Computer Engineering and Systems at Universidad de La Laguna, Spain. His research interests include automated decision-making, decision-making under uncertainty, evolutionary computation, and machine learning applications.
+\noindent\textbf{Pavel Novoa-Hern\'{a}ndez} is Associate Professor in the Department of Computer Engineering and Systems at Universidad de La Laguna, Spain. His research interests include automated decision-making, fuzzy decision support, and the operationalization of cooperative decision frameworks in interactive software.
 
-\noindent\textbf{David A. Pelta} is Full Professor in the Department of Computer Science and Artificial Intelligence at Universidad de Granada, Spain. His research focuses on fuzzy optimization, evolutionary computation, and decision-making under uncertainty.
+\noindent\textbf{David A. Pelta} is Professor in the Department of Computer Science and Artificial Intelligence at Universidad de Granada, Spain. His research focuses on fuzzy optimization, metaheuristics, and decision-making under uncertainty.
 
 \appendix
 \section{Attrition example dataset and model features}\label{app:attrition_features}
