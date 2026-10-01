@@ -200,62 +200,95 @@ Table~\ref{tab:related} summarizes representative application-oriented contribut
 CADEMAS-ML is designed to address this gap for the predictive-model setting. Building on the framework and its attrition instantiation discussed above, it provides a configurable software implementation in which ML-based ADM outputs, contextual reasoning, and case-level explanation coexist as explicit and auditable components of the decision-making process. The source code is publicly available under an MIT license (Section~\ref{sec:software}); the main contribution is the operationalization of the CADEMAS decomposition in a reusable decision-support tool.
 
 
+\section{Instantiation of CADEMAS for the Prioritization Problem}\label{sec:instantiation}
+% Aquí se define matemáticamente la especialización de CADEMAS para el problema de priorización.
+% Todo usando la notación del framework (S = <IM, A, OM, C, T>).
+
 \subsection{Problem definition and mapping}
 \label{sec:inst_problem}
 
-As previously noted in Section~\ref{sec:intro}, prioritization problems in organizational settings often require decisions about which cases should receive attention, intervention, or resources first. Examples include identifying employees at risk of attrition, allocating limited resources among clients or cases, and scheduling inspections according to risk and organizational priorities. In such settings, predictive evidence provides an important basis for prioritization, but it may not be sufficient on its own. Multiple decision-making components can provide complementary information about the same cases, while the relevance of that information may depend on the strategic, operational, or regulatory context in which the decision is made.
+As previously noted in Section~\ref{sec:intro}, prioritization problems in organizational settings arise when a set of cases must be ordered according to their relative need for attention, intervention, or resource allocation. Examples include identifying employees who may require retention measures, allocating limited resources among clients or cases, and scheduling inspections according to risk and organizational priorities. Let $\mathcal{X}=\{x_1,\ldots,x_N\}$ denote the set of cases considered in a decision process, where each case $x_i$ is characterized by a set of observable attributes. The objective is not only to assign a score to each case, but to establish a priority ordering over $\mathcal{X}$.
 
-Let $\mathcal{X}=\{x_1,\ldots,x_N\}$ denote the set of cases under evaluation. Each case $x_i$ is described by a set of observable attributes, and the objective is to assign a priority score $P_i$ that induces an ordering over $\mathcal{X}$. Within the CADEMAS framework, this problem can be formulated as the cooperation of multiple ADM units that provide partial decision signals, followed by their integration and contextual modulation. Thus, for a given case $x_i$, the resulting priority can be expressed in general form as
+Let
 \begin{equation}
-P_i =
-M\left(
-\Phi\left(o_{i1},\ldots,o_{iK}\right),
-\mathcal{C}_i
-\right),
-\label{eq:cademas_priority}
+P:\mathcal{X}\rightarrow[0,1]
+\label{eq:priority_function}
 \end{equation}
-where $o_{ik}$ denotes the signal produced by $ADM_k$ for case $x_i$, $\Phi$ represents the Decision Integration Layer, $\mathcal{C}_i$ denotes the contextual information associated with the case, and $M$ represents its contextual modulation. This formulation directly follows the CADEMAS architecture $\mathcal{S}=\langle\mathcal{IM},\,\mathcal{A},\,\mathcal{OM},\,\mathcal{C},\,\mathcal{T}\rangle$ introduced in Section~\ref{sec:cademas}.
+denote a priority function that assigns a normalized priority score to each case. This score induces a preference relation over the cases such that
+\begin{equation}
+x_i\succeq_P x_j
+\quad\Longleftrightarrow\quad
+P(x_i)\geq P(x_j).
+\label{eq:priority_relation}
+\end{equation}
+The corresponding ranking can be represented by a function
+\begin{equation}
+\pi_P:\mathcal{X}\rightarrow\{1,\ldots,N\},
+\end{equation}
+where lower values indicate higher priority. In the absence of ties, the rank of a case is therefore
+\begin{equation}
+\pi_P(x_i)
+=
+1+
+\left|
+\left\{
+x_j\in\mathcal{X}:P(x_j)>P(x_i)
+\right\}
+\right|.
+\label{eq:priority_rank}
+\end{equation}
+Thus, a prioritization configuration defines both a priority score for each case and an ordering of the cases induced by those scores.
 
-CADEMAS-ML specializes this formulation to a machine-learning-based prioritization setting. The general elements of the framework are mapped to the application as follows:
+In practical settings, however, the priority function may need to reflect more than a single source of evidence. Different predictive or decision-making components may capture complementary aspects of a case, while the relevance of their outputs may depend on the organizational, operational, or regulatory context in which the prioritization is performed. A case with a high predicted risk, for example, may not have the same priority under different organizational objectives or contextual conditions. The prioritization problem can therefore be viewed as the combination of multiple partial assessments with contextual considerations before the final ordering is established.
+
+This structure makes prioritization a natural application of the CADEMAS framework introduced in Section~\ref{sec:cademas}. CADEMAS provides an architecture in which heterogeneous Automated Decision-Making (ADM) units can contribute partial decision signals, these signals can be integrated into a common decision representation, and the resulting proposal can subsequently be considered in relation to the relevant context. CADEMAS-ML specializes this architecture for the prioritization problem by implementing the ADM units as machine-learning models and providing explicit mechanisms for defining the data, model, and contextual components involved in the decision process. The resulting specialization can be summarized through the mapping
+\begin{equation*}
+\mathcal{S}=\langle\mathcal{IM},\,\mathcal{A},\,\mathcal{OM},\,\mathcal{C},\,\mathcal{T}\rangle
+\end{equation*}
+as follows:
 
 \begin{itemize}
-    \item \textbf{Data representation ($\mathcal{T}$):} The admissible representations are specialized to tabular case data and bounded decision signals in $[0,1]$, which include predictive probabilities and fuzzy membership degrees.
-    
-    \item \textbf{Input Manager ($\mathcal{IM}$):} The Input Manager provides the case data required by the ADM units and coordinates the information needed by the subsequent integration and contextual stages. Different ADM units may operate on different, potentially overlapping, subsets of the available attributes.
-    
-    \item \textbf{ADM units ($\mathcal{A}$):} The decision-producing components are implemented as a set of predictive machine-learning models, $\mathcal{M}=\{M_1,\ldots,M_K\}$. For each case $x_i$, model $M_k$ produces a partial decision signal $o_{ik}=\hat{p}_{ik}\in[0,1]$, interpreted here as the predicted risk of the target event.
-    
-    \item \textbf{Decision Integration Layer ($\mathcal{OM}$):} The integration mapping $\Phi$ combines the individual predictive signals into a unified predictive-risk score $R_i$, which represents the raw decision proposal for the prioritization process.
-    
-    \item \textbf{Contextual Modulation ($\mathcal{C}$ and $M$):} Contextual information is represented through configurable fuzzy propositions. The contextual modulation stage evaluates the degree to which each case satisfies the specified contextual requirements and combines this information with the predictive-risk score to obtain the final priority score $P_i$.
+    \item \textbf{Data representation ($\mathcal{T}$):} The admissible data representations are specialized to the tabular case data and the decision signals required by the predictive and contextual components. This provides a common data basis while allowing individual ADM units and contextual models to use only the variables relevant to them.
+
+    \item \textbf{Input Manager ($\mathcal{IM}$):} The Input Manager coordinates the information required by the different components of the system. In particular, it defines how case data are provided to the ADM units, which features are required by each predictive model, and which variables are available for contextual modeling. These requirements are specified independently of the execution of the models, allowing different predictive models, their reported performance measures, and contextual definitions to be incorporated without modifying the underlying decision process.
+
+    \item \textbf{ADM units ($\mathcal{A}$):} The ADM layer is realized through a collection of pre-trained machine-learning models that represent different predictive perspectives on the cases. Each model may use a different subset of the available attributes and contributes its own assessment of the target event. Their independent predictions constitute the partial decision signals that will subsequently be integrated.
+
+    \item \textbf{Decision Integration Layer ($\mathcal{OM}$):} The integration layer combines the predictive assessments provided by the ADM units into a common representation of predictive risk. The contribution of each model can be determined from its reported predictive performance, allowing models with different predictive quality to participate in the cooperative decision without requiring them to be retrained or structurally modified.
+
+    \item \textbf{Contextual Modulator ($\mathcal{C}$):} The contextual component represents the conditions under which the predictive evidence is interpreted. In CADEMAS-ML, contextual definitions specify which attributes of the input cases are relevant to a particular decision scenario and how their values contribute to contextual suitability. The resulting contextual assessment is then incorporated into the prioritization together with the integrated predictive evidence.
 \end{itemize}
 
-The following subsections specify the mathematical realization of the predictive integration and contextual modulation stages, followed by the explainability and robustness extensions introduced in this work.
+The following subsections specify the realization of the predictive integration and contextual modulation, including the mechanisms used to configure and combine their respective contributions. The final subsection introduces the explainability and robustness extensions added to this specialization.
+
+\subsection{Input manager}\label{sec:input_manager}
+% Cómo se especializa la capa OM (Decision Integration Layer) usando modelos ML.
+% Ecuaciones de pesos (AUC) y riesgo predictivo integrado (R_i).
+% Referencias a implementaciones previas (Godz et al., 2026).
+
+The \textit{Input Manager} is specialized in CADEMAS-ML as four item tuple:
+
+\begin{equation*}
+\mathcal{IM} = \langle \mathcal{Y}, \mathcal{Y}_{def}, \mathcal{C}_{def}, \mathcal{X} \rangle
+\end{equation*}
+
+where:
+
+\begin{itemize}
+  \item \textbf{Machine-learning models ($\mathcal{Y}$):} A collection of pre-trained machine-learning models that represent different predictive perspectives on the cases. Each model may use a different subset of the available attributes and contributes its own assessment of the target event. Their independent predictions constitute the partial decision signals that will subsequently be integrated. 
+
+  \item \textbf{Model definitions ($\mathcal{Y}_{def}$):} A collection of model definitions for $\mathcal{Y}$ specifying meta-data, performance measures, and the features required by the model.
+
+  \item \textbf{Contextual definitions ($\mathcal{C}_{def}$):} A collection of contextual definitions that specify which attributes of the input cases are relevant to a particular decision scenario and how their values contribute to contextual suitability.
+
+  \item \textbf{Case data ($\mathcal{X}$):} The case data to be used for the prioritization, where each case $x_i$ is characterized by a set of observable attributes $f \supseteq \bigcup_{y \in \mathcal{Y}_{def}} f_y $.
+\end{itemize}
+
 
 \subsection{Cooperative predictive risk integration}\label{sec:inst_risk}
-
-In the general CADEMAS framework, the Decision Integration Layer $\mathcal{OM}$ is responsible for harmonizing and synthesizing the partial outputs produced by individual ADM units into a unified raw decision proposal. Within CADEMAS-ML, this layer is specialized to integrate the probabilistic assessments emitted by $K$ machine-learning models, $\mathcal{M}=\{M_1,\ldots,M_K\}$, each acting as an autonomous ADM unit. Because these units may observe distinct feature subsets representing different organizational perspectives or exhibit varying degrees of predictive trustworthiness \citep{Godz2026}, their outputs cannot be assumed to carry equal authority in the prioritization process.
-
-To account for differences in reliability among ADM units, CADEMAS-ML implements a performance-based weighting scheme. Let $s_k \ge 0$ denote an empirical validation metric associated with model $M_k$, such as the Area Under the Receiver Operating Characteristic Curve (AUC), cross-validation accuracy, or F1-score. The normalized confidence weight $w_k$ assigned to $M_k$ is computed as
-\begin{equation}
-w_k = \frac{s_k}{\sum_{\ell=1}^{K} s_\ell}, \qquad \text{where } \sum_{k=1}^{K} w_k = 1 \text{ and } w_k \ge 0.
-\label{eq:model_weights}
-\end{equation}
-This formulation ensures that models demonstrating higher predictive quality on historical validation data exert a proportionally greater influence on the integrated risk assessment.
-
-Given the vector of partial decision signals $(o_{i1},\ldots,o_{iK}) = (\hat{p}_{i1},\ldots,\hat{p}_{iK})$ for a given case $x_i$, the integration mapping $\Phi$ synthesizes these predictions into the cooperative predictive-risk score $R_i$:
-\begin{equation}
-R_i = \Phi\left(\hat{p}_{i1},\dots,\hat{p}_{iK}\right) = \sum_{k=1}^{K} w_k \hat{p}_{ik}.
-\label{eq:cooperative_risk}
-\end{equation}
-The resulting score $R_i \in [0,1]$ constitutes the raw decision proposal $D^{\mathrm{raw}}$ of the CADEMAS architecture for case $x_i$. It captures the consensus prediction of the model ensemble, summarizing the available empirical risk evidence prior to any contextual evaluation.
-
-This linear performance-weighted aggregation builds upon the cooperative setup introduced by \citet{Godz2026} in the context of employee-attrition prevention. However, whereas previous studies fixed both the set of models and the choice of weighting metric in static application code, CADEMAS-ML generalizes the operationalization of the $\mathcal{OM}$ layer. By allowing dynamic runtime selection of validation metrics and metadata specifications, the tool enables decision makers to reweight model contributions transparently as model validation scores are updated or governance requirements change.
-
-\subsection{Contextual modulation via fuzzy logic}\label{sec:inst_context}
-% Cómo se especializa la capa C (Contextual Modulator).
-% Ecuaciones de reglas atómicas, reglas derivadas y agregación final (C_i).
-% Cómo el framework integra R_i y C_i en la decisión final P_i(\lambda).
+% Cómo se especializa la capa OM (Decision Integration Layer) usando modelos ML.
+% Ecuaciones de pesos (AUC) y riesgo predictivo integrado (R_i).
+% Referencias a implementaciones previas (Godz et al., 2026).
 
 \subsection{Explainability and robustness extensions}\label{sec:inst_extensions}
 % Las contribuciones matemáticas/formales nuevas de este trabajo.
