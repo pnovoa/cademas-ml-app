@@ -85,44 +85,38 @@
 automated decision-making systems; fuzzy decision making; context-aware decision support; machine learning; prioritization; cooperative systems
 \end{keywords}
 
+
 \section{Introduction}\label{sec:intro}
 
-Decision-making in real-world organizations is rarely a matter of applying a single analytical model to a well-defined set of inputs. Complex decisions often involve multiple actors, organizational units, or analytical components that contribute different pieces of evidence to the same problem. These contributions may reflect different objectives, information sources, areas of expertise, or levels of reliability, and therefore need to be coordinated before they can support a coherent course of action. This has long motivated the development of cooperative and multi-agent decision-support systems, in which heterogeneous decision components can contribute to a common decision process \citep{Vahidov2004,bui1999agent}. More recent discussions of automated decision-making (ADM) likewise emphasize that algorithmic outputs are embedded in organizational processes rather than existing independently of them \citep{EIP2022,Tariq2024a}.
+Decision-making in real-world organizations is rarely a matter of applying a single analytical model to a well-defined set of inputs. Complex decisions often involve multiple stakeholders, organizational units, or analytical components that contribute different pieces of evidence to the same problem. These contributions may reflect different objectives, information sources, areas of expertise, or levels of reliability, and therefore need to be coordinated before they can support a coherent course of action. 
 
-This organizational perspective becomes particularly important when automated decision-making is used to support prediction, classification, or risk assessment. An automated decision-making component can produce a probability, rating, recommendation, or risk score, but such an output does not by itself determine how the result should be acted upon. The appropriate course of action may depend on factors that are external to the predictive model, including organizational priorities, available resources, departmental objectives, regulatory constraints, or the strategic conditions under which the decision is made. Consequently, the same predictive assessment may have different implications under different circumstances. This distinction between the evidence provided by an automated model and the conditions under which that evidence is interpreted is particularly relevant in organizational decision-support settings, where decisions are embedded in broader operational and institutional contexts \citep{Tariq2024a,Deliu2026}.
+This perspective becomes particularly important when automated decision-making is used to support prediction, classification, or risk assessment. An automated decision-making (ADM) component can produce a probability, rating, recommendation, or risk score, but such an output does not by itself determine how the result should be acted upon. The appropriate course of action may depend on factors that are external to the predictive model, including organizational priorities, available resources, departmental objectives, regulatory constraints, or the strategic conditions under which the decision is made. In other words, decisions are taken in a ``context'' and not in vacuum.
 
-Cooperation among automated decision components can therefore be understood as more than the aggregation of several predictions. Different components may provide complementary views of the cases under consideration, while the final decision may also need to reflect contextual knowledge provided by domain experts or organizational policies. In multiperson and group decision-support research, heterogeneous sources of information and preferences have traditionally been combined through aggregation, negotiation, and consensus-seeking mechanisms \citep{Salo1995,HerreraViedma2002}. Similar principles can be extended to automated settings, where the cooperating components may be software-based decision units rather than human decision makers. Agent-based decision-support architectures have, for example, explored the coordination of heterogeneous and distributed decision-support components within organizational workflows \citep{Sycara1998,Vahidov2004}.
-
-Contextual knowledge introduces an additional challenge because it is not always naturally expressed through precise numerical relationships \citep{boos2024conceptualizing}. Experts and decision makers frequently reason in terms such as ``high priority,'' ``moderate relevance,'' ``limited resources,'' or ``strong strategic alignment.'' Fuzzy logic provides a well-established formal basis for representing such concepts through linguistic variables and gradual membership functions \citep{zadeh1975concept}. This capability has made fuzzy approaches particularly useful in decision-support systems where quantitative information must be combined with expert knowledge and imprecise or linguistic assessments \citep{Lamata2020,PerezCanedo2023}. Rather than imposing rigid thresholds, fuzzy representations allow contextual conditions to influence a decision to different degrees, which is well suited to scenarios in which organizational priorities vary with the circumstances.
+Besides this, the simultaneous use of different ADM components may provide complementary views of the cases under consideration, while the final decision may also need to reflect contextual knowledge provided by domain experts or organizational policies.
 
 These considerations motivated the development of the Cooperative Automated Decision-Making Systems (CADEMAS) framework proposed by \citet{NovoaHernandez2026}. CADEMAS provides a conceptual framework for coordinating heterogeneous automated decision-making components while explicitly incorporating the context in which their outputs are interpreted. Its central principle is to distinguish between the generation and integration of decision evidence and the contextual evaluation of that evidence. Multiple automated decision units can therefore contribute to a collective assessment, while a separate contextual layer represents organizational priorities, policies, or scenario-dependent considerations. The resulting decision is obtained by combining these two sources of information rather than treating the predictive assessment as an isolated or definitive outcome.
 
-The original CADEMAS formulation was illustrated through a corporate insolvency prediction problem, demonstrating how several automated decision units could contribute to a common assessment while contextual information influenced the resulting prioritization. More recently, \citet{Godz2026} instantiated the framework in an employee-attrition prevention scenario, using machine-learning models developed from different organizational perspectives as the automated decision units and incorporating organizational scenarios through a fuzzy context layer. These studies provide evidence that the framework can be applied to practical decision problems in which predictive information and contextual considerations need to be combined. At the same time, they represent specific instantiations of a framework whose design permits substantially broader combinations of decision units, weighting schemes, contextual models, aggregation operators, and decision policies.
+The work is inspired in the development of cooperative and multi-agent decision-support systems, in which heterogeneous decision components can contribute to a common decision process \citep{Vahidov2004,bui1999agent} and also, in multiperson and group decision-support research, where heterogeneous sources of information and preferences have traditionally been combined through aggregation, negotiation, and consensus-seeking mechanisms \citep{Salo1995,HerreraViedma2002}. Similar principles can be extended to automated settings, where the cooperating components could be software-based decision units rather than human decision makers.
 
-This flexibility is both a strength of CADEMAS and a practical challenge. A new application requires decisions about how the automated components should be defined, how their outputs should be aligned and integrated, how contextual conditions should be represented, and how the different sources of information should ultimately influence the prioritization of cases. These choices are conceptually part of the framework, but their implementation must otherwise be developed separately for each application. As the number of configurable elements increases, reproducing and experimenting with alternative CADEMAS configurations can become increasingly demanding for researchers, practitioners, and decision makers. A dedicated software implementation can therefore serve not only as a means of reducing implementation effort, but also as a common environment in which different configurations of the framework can be constructed, inspected, compared, and reproduced.
 
-The need for such an environment is particularly relevant for machine-learning-based instantiations of CADEMAS. Machine-learning models provide effective mechanisms for extracting predictive evidence from historical data, but their outputs introduce additional requirements when they become part of a decision-support process. In particular, users may need to understand why a particular case receives a given prediction and how changes in the underlying information affect the result. Explainable artificial intelligence has consequently become an important area of research for the practical use of machine-learning models, particularly when predictions contribute to decisions with organizational or human consequences \citep{Arrieta2020}. Model-agnostic approaches such as SHAP provide local feature attributions that can help users inspect the factors contributing to individual predictions \citep{Lundberg2017,Lundberg2020}. In a cooperative decision system, however, such explanations are only one part of the analysis: users may also need to understand how the predictive outputs interact with contextual assumptions and whether the resulting prioritization remains stable when those assumptions change.
+A particular scenario where a CADEMAS-like tool is relevant is the following: suppose that you have a set of entities and some limited intervention budget. The question is how to prioritize the entities for receiving an intervention?
 
-Robustness analysis is therefore another relevant capability for context-aware decision support. In CADEMAS, the final prioritization depends not only on predictive evidence but also on contextual definitions, aggregation mechanisms, and the relative importance assigned to predictive and contextual information. Changes in these elements may alter the ordering of cases even when the underlying predictive models remain unchanged. Allowing users to examine such changes can provide information about the stability of the resulting decisions and expose cases whose prioritization is particularly sensitive to the adopted policy configuration \citep{Arrieta2020}.
+Examples of this scenario are attrition risk prevention \cite{Godz2026}, small and medium size companies financial rescue \cite{NavarroGalera2025}, students dropout prevention {\color{red}(BUSCAR REF)}, and so on.
 
-Motivated by these considerations, and with the aim of addressing the practical needs described above, this paper presents CADEMAS-ML, a software tool designed to operationalize a configurable class of CADEMAS systems in which automated decision-making components are implemented as machine-learning models and contextual knowledge is represented through fuzzy logic.
-The tool integrates multiple predictive models into a collective risk assessment, provides configurable mechanisms for representing and aggregating contextual conditions, and combines predictive risk with contextual suitability through an explicit trade-off mechanism. In addition to these core CADEMAS capabilities, this work proposes explainability and robustness analysis as natural extensions of the framework, given their relevance to the practical inspection and assessment of context-aware decisions. Both capabilities are incorporated into CADEMAS-ML as complementary components of the decision-support workflow. The objective is to provide a reusable software environment through which cooperative and context-aware decision-making configurations can be implemented and analyzed.
+Using CADEMAS in these problems means that first, a risk is assessed for every entity using different ADMs (implementing machine learning techniques) and second, the suitability of the entity to a given context is also calculated. For example, in a context of economic crisis you may prioritize a company with a high number of employees (or with the lower); in a context of growing, you may prioritize companies with a high expected impact. Such contexts can be modeled, for example, with fuzzy rules as proposed in \citep{Lamata2020,PerezCanedo2023}, allowing to combine quantitative information with expert knowledge and imprecise or linguistic assessments.
 
-The main contributions of this work are as follows:
+But also, users may need to understand why a particular entity receives a given prediction and how changes in the underlying information affect the result. Explainable artificial intelligence has consequently become an important area of research for the practical use of machine-learning models, particularly when predictions contribute to decisions with organizational or human consequences \citep{Arrieta2020}. Model-agnostic approaches such as SHAP provide local feature attributions that can help users inspect the factors contributing to individual predictions \citep{Lundberg2017,Lundberg2020}. 
 
-\begin{itemize}
-    \item \textit{A software implementation of CADEMAS.} CADEMAS-ML provides a reusable and configurable implementation of a class of CADEMAS systems in which machine-learning models act as automated decision-making components and fuzzy logic is used to represent contextual knowledge.
-    
-    \item \textit{Configurable cooperative and context-aware decision support.} The tool allows for integrating heterogeneous predictive models, performance-based model weighting, fuzzy contextual representations, alternative aggregation mechanisms, and an explicit trade-off between predictive risk and contextual suitability.
-    
-    \item \textit{Explainability and robustness analysis.} The tool extends the decision-support workflow with case-level explanations and mechanisms for analyzing how prioritization outcomes change under alternative contextual and policy configurations.
-    
-    \item \textit{A reproducible software demonstration.} The capabilities of the tool are demonstrated in an employee-attrition scenario involving multiple organizational predictive models and alternative contextual configurations, illustrating how identical predictive evidence can lead to different prioritization outcomes when the decision context changes.
-\end{itemize}
+Robustness analysis is another required capability for context-aware decision support. In CADEMAS, the final prioritization depends not only on predictive evidence but also on contextual definitions, aggregation mechanisms, and the relative importance assigned to predictive and contextual information. Changes in these elements may alter the ordering of cases even when the underlying predictive models remain unchanged. Allowing users to examine such changes can provide information about the stability of the resulting decisions and expose cases whose prioritization is particularly sensitive to the adopted policy configuration \citep{Arrieta2020}.
 
-The resulting tool provides a bridge between the conceptual principles of CADEMAS and their practical use in machine-learning-based decision-support applications. Rather than restricting the framework to a single predefined configuration, CADEMAS-ML makes several of its principal design choices explicit and configurable. This allows users (e.g., practitioners and decision-makers) to construct alternative decision policies while preserving the separation between predictive evidence and contextual evaluation that characterizes CADEMAS. The inclusion of explainability and robustness analysis further supports a decision-support workflow in which a prioritization is not only generated, but can also be inspected, justified, and examined under alternative assumptions.
+To the best of our knowledge, there is no integrated tool that allows to deal with prioritization problems in the way described before.
 
-The remainder of the paper is organized as follows. Section~\ref{sec:background} reviews the CADEMAS framework and related work on cooperative and fuzzy decision-support systems. Section~\ref{sec:methods} describes how CADEMAS-ML instantiates that framework for case prioritization and presents the resulting software architecture. Section~\ref{sec:results} introduces an employee-attrition case study and then shows the main functionalities of the tool through that example. Finally, Section~\ref{sec:discussion} summarizes the main findings and discusses implications and future directions.
+In this scenario, the main aim is to present CADEMAS-ML, a software tool designed to engineer a configurable class of CADEMAS systems (to deal with prioritization problems) in which automated decision-making components are implemented as machine-learning models and contextual knowledge is represented through fuzzy rules.
+It provides configurable mechanisms for representing and aggregating contextual conditions, and combines predictive risk with contextual suitability through an explicit trade-off mechanism. In addition to these core CADEMAS capabilities, this work proposes explainability and robustness analysis as natural extensions of the framework. Both capabilities are incorporated into CADEMAS-ML. 
+
+
+The remainder of the paper is organized as follows. Section~\ref{sec:background} reviews the CADEMAS framework and related work on cooperative and fuzzy decision-support systems. Section~\ref{sec:methods} presents the architecture and main components of CADEMAS-ML. Section~\ref{sec:results} reports the outputs produced by its modules. Both sections use an employee-attrition case study to illustrate the functionality and operation of the tool. Finally, Section~\ref{sec:discussion} summarizes the main findings and discusses the implications of the proposed tool and possible directions for future work.
+
 
 \section{Background and related works}\label{sec:background}
 
@@ -433,20 +427,9 @@ The inclusion of these alternatives follows the analysis in \citet{novoa2026aggr
 
 \subsection{Explainability Extension}\label{sec:explainability}
 
-CADEMAS-ML extends the original CADEMAS framework with a case-level explanation mechanism designed to make the cooperative decision process interpretable and auditable. While CADEMAS distinguishes the contributions of ADM units, decision integration, and contextual modulation, it does not prescribe how these contributions should be exposed to decision-makers. The proposed extension addresses this aspect by retaining intermediate computational artifacts and combining three complementary sources of evidence: predictive attribution, contextual rule traceability, and the mathematical decomposition of the final decision.
+CADEMAS-ML extends the original CADEMAS framework with a case-level explanation mechanism designed to make the cooperative decision process interpretable and auditable. While CADEMAS distinguishes the outputs of ADM units, their integration, and contextual modulation, it does not prescribe how these elements should be exposed to decision-makers. The proposed extension addresses this aspect by retaining intermediate computational artifacts and providing two complementary explanation layers: a predictive explanation, which identifies the local influence of the input features on the integrated predictive signal, and a contextual explanation, which traces the fuzzy evidence underlying the contextual assessment.
 
-For a selected case $x_i$, the explanation first identifies the predictive and contextual signals contributing to its final decision value. Under the weighted arithmetic operator, the decomposition is additive:
-
-\begin{equation}
-D_i^{\mathrm{final}}
-=
-\underbrace{\lambda R_i}_{\text{predictive contribution}}
-+
-\underbrace{(1-\lambda)C_i}_{\text{contextual contribution}},
-\label{eq:explanation_decomposition}
-\end{equation}
-
-where $R_i=D_i^{\mathrm{raw}}$ denotes the integrated predictive signal. For the weighted geometric and minimum operators, the explanation instead reports the two component values and their corresponding aggregation mechanism, preserving the non-additive or non-compensatory nature of these operators.
+For a selected case $x_i$, the explanation preserves the aggregation mechanism used to obtain the final decision. The predictive and contextual component values, $D_i^{\mathrm{raw}}$ and $C_i$, are reported together with the selected aggregation operator and, when applicable, its parameter $\lambda$. For the linear operator, the two components can be interpreted additively. For the weighted geometric operator, the explanation reflects their multiplicative combination and the corresponding balance parameter. For the minimum operator, the lower component is identified as the limiting factor. This representation preserves the semantics of each aggregation mechanism without imposing an additive decomposition on operators for which such a decomposition is not defined.
 
 To explain the predictive component, CADEMAS-ML employs a model-agnostic perturbation procedure suitable for the heterogeneous and potentially ensemble-based ML models supported by the tool. For each model $M_k$ and feature $f$, the local effect is estimated by comparing the original prediction with the prediction obtained after replacing the observed feature value with a cohort reference value $b_f$:
 
@@ -456,7 +439,6 @@ To explain the predictive component, CADEMAS-ML employs a model-agnostic perturb
 M_k(x_i)-M_k\left(x_i^{(f\leftarrow b_f)}\right),
 \label{eq:local_attribution_model}
 \end{equation}
-
 where $b_f$ is the median of the reference cohort for numerical features and the mode for categorical features. The model-specific effects are then integrated using the same weights employed by the Decision Integration Layer:
 
 \begin{equation}
@@ -466,7 +448,17 @@ where $b_f$ is the median of the reference cohort for numerical features and the
 \label{eq:local_attribution_global}
 \end{equation}
 
-Positive values indicate that the observed feature value increases the integrated predictive score relative to the reference value, whereas negative values indicate a decrease. These quantities provide approximate local feature effects in probability points and are not interpreted as causal effects.
+Positive values indicate that the observed feature value increases the integrated predictive score relative to the reference value, whereas negative values indicate a decrease. These quantities provide approximate local feature effects in probability points and are not interpreted as causal effects. The resulting predictive explanation can therefore be represented as
+
+\begin{equation}
+\mathcal{E}_i^{\mathrm{pred}}
+=
+\left\{
+(f,\Delta_{if})
+\right\}_{f\in\mathcal{F}},
+\label{eq:predictive_explanation}
+\end{equation}
+where $\mathcal{F}$ denotes the set of features considered in the perturbation analysis.
 
 The contextual explanation traces the assessment $C_i$ back to the fuzzy propositions and derived rules defined in the selected context. By retaining the membership values of the evaluated rules, the tool exposes the intermediate evidence underlying the contextual aggregation:
 
@@ -474,32 +466,77 @@ The contextual explanation traces the assessment $C_i$ back to the fuzzy proposi
 \mathcal{E}_i^{\mathrm{context}}
 =
 \left\{
-(r,\mu_r(x_i))
-\right\}_{r\in\mathcal{R}},
+(r,\mu_r^*(x_i))
+\right\}_{r\in\mathcal{R}_{a}}
+\cup
+\left\{
+(d,\mu_d(x_i))
+\right\}_{d\in\mathcal{R}_{d}},
 \label{eq:context_explanation}
 \end{equation}
+where $\mathcal{R}_{a}$ and $\mathcal{R}_{d}$ denote the sets of atomic and derived rules evaluated for case $x_i$, respectively. The use of $\mu_r^*(x_i)$ for atomic rules accounts for possible activation conditions. This representation allows the contextual assessment to be inspected in terms of the conditions satisfied by the case, including conditional rule activations and the aggregation operations leading to $C_i$.
 
-where $\mathcal{R}$ comprises the atomic and derived rules evaluated for case $x_i$. This representation allows the contextual assessment to be inspected in terms of the conditions satisfied by the case, including conditional rule activations and the aggregation operations leading to $C_i$.
-
-Finally, these quantitative artifacts are combined into a deterministic natural-language explanation. Formally, the explanation for case $x_i$ can be represented as
+The two explanation layers are subsequently combined into a deterministic natural-language representation. Formally, the explanation for case $x_i$ can be represented as
 
 \begin{equation}
 E_i =
 \Psi\left(
 D_i^{\mathrm{final}},
-R_i,C_i,
-\lambda,
-{\Delta_{if}}_{f},
-\mathcal{E}_i^{\mathrm{context}}
+D_i^{\mathrm{raw}},
+C_i,
+\mathcal{E}_i^{\mathrm{pred}},
+\mathcal{E}_i^{\mathrm{context}},
+\mathcal{A}_i
 \right),
 \label{eq:natural_language_explanation}
 \end{equation}
+where $\mathcal{A}_i$ denotes the selected aggregation mechanism and its parameters when applicable. The function $\Psi$ translates the quantitative evidence into a structured textual explanation that relates the final prioritization outcome to its predictive and contextual drivers. In this way, the natural-language layer does not replace the underlying explanation artifacts, but provides a more accessible interpretation of how the predictive evidence, contextual suitability, and selected cooperation mechanism jointly determine the final decision.
 
-where $\Psi$ generates a structured textual summary of the prioritization outcome, its predictive and contextual drivers, and the relevant contextual conditions. The explanation may also include a tier-based recommendation derived from the final prioritization score, distinguishing high-priority cases, intermediate cases requiring qualitative review, and lower-priority cases under the selected decision configuration.
+\subsection{Robustness Extension}\label{sec:robustness}
 
+CADEMAS-ML extends the CADEMAS decision process with a robustness analysis aimed at assessing the stability of prioritization results under alternative contextual modulation configurations. Let
+\[
+\mathcal{G}_{\mathrm{mod}}
+=
+\left\{
+g=(o,\theta_o)
+\right\}
+\]
+denote the set of modulation configurations explored by the analyst, where $o$ identifies the selected aggregation operator and $\theta_o$ denotes its associated parameterization, which may be empty for parameter-free operators. Each configuration $g\in\mathcal{G}_{\mathrm{mod}}$ induces a prioritization score vector
+\[
+\mathbf{D}^{(g)}
+=
+\left(
+D_1^{(g)},\ldots,D_N^{(g)}
+\right)
+\]
+and an associated ranking $\pi^{(g)}$ over the cases.
 
+This representation allows robustness to be examined from two complementary perspectives. Within-operator robustness evaluates the stability of prioritization results under different parameterizations of the same aggregation operator. For operators with a balance parameter, such as the linear and weighted geometric operators, the analyst can explore a set of $\lambda$ values and compare the resulting score vectors and rankings. The minimum operator provides a parameter-free configuration that can be included as a reference in the broader analysis.
 
-\subsection{Robustness}
+Across-operator robustness evaluates the stability of prioritization results when the aggregation mechanism itself is changed. Given the same predictive and contextual signals, different operators in the set
+\[
+\mathcal{O}
+=
+\{
+\mathrm{linear},
+\mathrm{geometric},
+\mathrm{minimum}
+\}
+\]
+can generate different score vectors and induced rankings. Comparing these configurations makes it possible to identify cases whose prioritization remains stable across alternative modulation mechanisms and cases whose scores or ranking positions are sensitive to the selected operator.
+
+More generally, the tool considers the collection
+\[
+\mathcal{R}_{\mathcal{G}}
+=
+\left\{
+\pi^{(g)}:g\in\mathcal{G}_{\mathrm{mod}}
+\right\}
+\]
+of rankings induced by the explored configurations. This collection can be inspected either individually or simultaneously, allowing the analyst to examine changes in the relative ordering of cases, shifts in their prioritization scores, and changes in the cases occupying the highest-priority positions. The same framework can therefore be used to perform within-operator and across-operator comparisons independently or jointly.
+
+The robustness analysis does not assume that one aggregation mechanism provides a universally preferred prioritization. Instead, it exposes the extent to which prioritization conclusions depend on the contextual modulation configuration. In particular, it allows the analyst to distinguish cases whose prioritization is stable across configurations from cases whose position is sensitive to changes in the balance between predictive evidence and contextual suitability or to the aggregation mechanism itself.
 
 % ----------------------------------------------------------------------
 
