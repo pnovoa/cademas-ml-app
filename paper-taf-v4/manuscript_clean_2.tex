@@ -127,32 +127,27 @@ As introduced in Section~\ref{sec:intro}, CADEMAS \citep{NovoaHernandez2026} pro
 
 A central premise is that an ADM unit need not produce a complete operational decision on its own. It may instead contribute a \emph{partial decision signal}, such as a score, prediction, rule activation, explanation, or suggested action, whose semantics need not coincide with those of the other units. These signals are therefore integrated and then evaluated in their relevant context. Formally, a CADEMAS instance is represented by the tuple
 \begin{equation}
-\mathcal{S}=\langle \mathcal{IM},\,\mathcal{A},\,\mathcal{OM},\,\mathcal{C},\,\mathcal{T}\rangle,
+{\color{red}S=\langle \mathcal{IM},\,A,\,\mathcal{OM},\,\mathcal{C},\,\mathcal{T}\rangle,}
 \end{equation}
-where $\mathcal{IM}$ is the Input Manager, $\mathcal{A}$ is the set of ADM units, $\mathcal{OM}$ is the Decision Integration Layer, $\mathcal{C}$ is the Contextual Modulator, and $\mathcal{T}$ is the universe of admissible data types and representations.
+where $\mathcal{IM}$ is the Input Manager, {\color{red}$A$} is the set of ADM units, $\mathcal{OM}$ is the Decision Integration Layer, $\mathcal{C}$ is the Contextual Modulator, and $\mathcal{T}$ is the universe of admissible data types and representations.
 
 The Input Manager $\mathcal{IM}$ routes, transforms, and validates the information entering the architecture. It distinguishes training or calibration data, which are used offline to construct or update the internal models of the ADM units, from decision-case data provided when a new case is evaluated. The set of ADM units is denoted by
 \begin{equation}
-\mathcal{A}=\{ADM_1,\ldots,ADM_n\}.
+{\color{red}A=\{ADM_1,\ldots,ADM_n\}.}
 \end{equation}
-Each $ADM_i$ receives a data representation $d_i\in\mathcal{T}$ and produces an output $o_i\in\mathcal{T}$. Cooperation among these units may be \emph{indirect}, with each unit contributing an independent signal, or \emph{direct}, with units exchanging intermediate representations. CADEMAS allows for both forms without imposing a specific communication protocol.
+Each {\color{red}$ADM_k$} receives a data representation {\color{red}$r_k\in\mathcal{T}$} and produces an output {\color{red}$o_k\in\mathcal{T}$}. Cooperation among these units may be \emph{indirect}, with each unit contributing an independent signal, or \emph{direct}, with units exchanging intermediate representations. CADEMAS allows for both forms without imposing a specific communication protocol.
 
-Given the heterogeneous collection $\mathcal{O}=\{o_1,\ldots,o_n\}$, the Decision Integration Layer $\mathcal{OM}$ synthesizes a unified decision object $D$ through a mapping
+Given the heterogeneous collection {\color{red}$O=\{o_1,\ldots,o_n\}$}, the Decision Integration Layer $\mathcal{OM}$ synthesizes a unified decision object $D$ through a mapping
 \begin{equation*}
-\Phi:\mathcal{O}\rightarrow D.
+\Phi:{\color{red}O}\rightarrow D.
 \end{equation*}
 This layer addresses the harmonization of ADM outputs and their subsequent aggregation or synthesis. The resulting $D$ is a \emph{raw} decision proposal: the outputs have been brought into a common representation, but have not yet been adjusted to the context in which they will be used. The Contextual Modulator provides that additional step. Formally,
 \begin{equation}
-M:D\times\mathcal{C}\rightarrow D,\qquad D^{\mathrm{final}}=M(D^{\mathrm{raw}},\mathcal{C}),
+{\color{red}\Gamma:D\times\mathcal{C}\rightarrow D,\qquad D^{\mathrm{final}}=\Gamma(D^{\mathrm{raw}},\mathcal{C}),}
 \end{equation}
 where $\mathcal{C}$ may encode regulatory requirements, organizational policies, resource constraints, or other scenario-dependent conditions. Depending on the application, this information may be expressed through rules, utility functions, constraints, fuzzy propositions, or other complementary mechanisms.
 
-The predictive and fuzzy specialization implemented by CADEMAS-ML, including cooperative risk scores, fuzzy context alignment, and an explicit trade-off between these components, is described in Section~\ref{sec:instantiation}. The general architecture remains open with respect to the type of ADM units, the semantics of their outputs, the integration mapping $\Phi$, and the way contextual information enters through $M$.
-
-This flexibility is reflected in the applications reported to date. The original formulation illustrated the framework with an SME insolvency-prediction scenario in which heterogeneous decision units were combined with contextual constraints \citep{NovoaHernandez2026}. \citet{Godz2026} subsequently instantiated CADEMAS for employee-attrition prevention, treating departmental machine-learning models as cooperating ADM units and encoding organizational scenarios through a fuzzy context layer. Building on this machine-learning pathway, \citet{novoa2026aggregation} examined the effect of different aggregation operators on prioritization, comparing linear, weighted-geometric, and minimum operators and analyzing how their aggregation behavior affects the interaction between predictive evidence and contextual requirements. More recently, \citet{Vazquez2026} proposed a cooperative ADM strategy with fuzzy contextual modulation for SME insolvency prediction, combining heterogeneous survival models, a contextual modulator, and explainable-AI support.
-
-Together, these studies illustrate the range of possible CADEMAS configurations, but each still requires a specific implementation for the domain and setting considered. CADEMAS-ML addresses this need by turning their shared machine-learning pathway into a reusable environment for constructing, inspecting, comparing, and reproducing such configurations.
-
+The predictive and fuzzy specialization implemented by CADEMAS-ML, including cooperative risk scores, fuzzy context alignment, and an explicit trade-off between these components, is described in Section~\ref{sec:instantiation}. The general architecture remains open with respect to the type of ADM units, the semantics of their outputs, the integration mapping $\Phi$, and the way contextual information enters through {\color{red}$\Gamma$}.
 \subsection{Related frameworks and decision-support applications}\label{sec:related}
 
 Recent research has increasingly recognized that effective decision support requires more than accurate isolated models. In many application domains, decisions emerge from the interaction between automated units, expert knowledge, and contextual considerations that may change over time. For clarity, it is useful to distinguish two related but different bodies of work: general cooperative-decision frameworks, which address how multiple decision entities interact, and application-oriented decision-support systems, which implement concrete methods for a domain or family of decision problems.
@@ -192,31 +187,28 @@ Table~\ref{tab:related} summarizes representative application-oriented contribut
 
 CADEMAS-ML is designed to address this gap for the predictive-model setting. Building on the framework and its attrition instantiation discussed above, it provides a configurable software implementation in which ML-based ADM outputs, contextual reasoning, and case-level explanation coexist as explicit and auditable components of the decision-making process. The source code is publicly available under an MIT license (Section~\ref{sec:software}); the main contribution is the operationalization of the CADEMAS decomposition in a reusable decision-support tool.
 
-
 \section{Instantiation of CADEMAS for the Prioritization Problem}\label{sec:instantiation}\label{sec:methods}
-% Aquí se define matemáticamente la especialización de CADEMAS para el problema de priorización.
-% Todo usando la notación del framework (S = <IM, A, OM, C, T>).
 
 \subsection{Problem definition and overall mapping}
 \label{sec:inst_problem}
 
-As noted in Section~\ref{sec:intro}, prioritization arises when a set of cases must be ordered according to their relative need for attention, intervention, or resource allocation. This section formalizes that problem. Let $\mathcal{X}=\{x_1,\ldots,x_N\}$ denote the set of cases considered in a decision process, where each case $x_i$ is characterized by a set of observable attributes. The objective is not only to assign a score to each case, but to establish a priority ordering over $\mathcal{X}$.
+As noted in Section~\ref{sec:intro}, prioritization arises when a set of cases must be ordered according to their relative need for attention, intervention, or resource allocation. This section formalizes that problem. Let \(X=\{x_1,\ldots,x_N\}\) denote the set of cases considered in a decision process, where each case \(x_i\) is characterized by a set of observable attributes. The objective is not only to assign a score to each case, but to establish a priority ordering over \(X\).
 
 Let
 \begin{equation}
-P:\mathcal{X}\rightarrow[0,1]
+P:X\rightarrow[0,1]
 \label{eq:priority_function}
 \end{equation}
-denote a priority function that assigns a normalized priority score to each case. This score induces a preference relation over the cases such that
+denote a priority function that assigns a normalized priority score to each case. For brevity, we write \(p_i:=P(x_i)\). This score induces a preference relation over the cases such that
 \begin{equation}
 x_i\succeq_P x_j
 \quad\Longleftrightarrow\quad
-P(x_i)\geq P(x_j).
+p_i\geq p_j.
 \label{eq:priority_relation}
 \end{equation}
 The corresponding ranking can be represented by a function
 \begin{equation}
-\pi_P:\mathcal{X}\rightarrow\{1,\ldots,N\},
+\pi_P:X\rightarrow\{1,\ldots,N\},
 \end{equation}
 where lower values indicate higher priority. In the absence of ties, the rank of a case is therefore
 \begin{equation}
@@ -225,139 +217,49 @@ where lower values indicate higher priority. In the absence of ties, the rank of
 1+
 \left|
 \left\{
-x_j\in\mathcal{X}:P(x_j)>P(x_i)
+x_j\in X:p_j>p_i
 \right\}
 \right|.
 \label{eq:priority_rank}
 \end{equation}
 Thus, a prioritization configuration defines both a priority score for each case and an ordering of the cases induced by those scores.
 
-In practice, a priority function may need to draw on several complementary assessments, and the relevance of their outputs may change with the organizational conditions under which the decision is made. The integration and modulation stages defined in Section~\ref{sec:cademas} provide the required structure. CADEMAS-ML specializes this architecture for prioritization by implementing the ADM units as machine-learning models and by making the data, model, and contextual components of the decision process explicit. The resulting specialization can be summarized through the mapping
+In practice, the priority function may need to draw on several complementary assessments, and the relevance of their outputs may change with the organizational conditions under which the decision is made. The integration and modulation stages defined in Section~\ref{sec:cademas} provide the required structure. CADEMAS-ML specializes this architecture for prioritization by implementing the ADM units as machine-learning models and by making the data, ADM, and contextual components of the decision process explicit. The resulting specialization can be summarized through the mapping
 \begin{equation*}
-\mathcal{S}=\langle\mathcal{IM},\,\mathcal{A},\,\mathcal{OM},\,\mathcal{C},\,\mathcal{T}\rangle
+S=\langle\mathcal{IM},\,A,\,\mathcal{OM},\,\mathcal{C},\,\mathcal{T}\rangle
 \end{equation*}
 as follows:
 
 \begin{itemize}
- \item \textbf{Data representation ($\mathcal{T}$):} The admissible representations are specialized to tabular case data and to the decision signals required by the predictive and contextual components. Each component may use only the variables relevant to it.
+ \item \textbf{Data representation (\(\mathcal{T}\)):} The admissible representations are specialized to tabular case data and to the decision signals required by the predictive and contextual components. Each component may use only the variables relevant to it.
 
- \item \textbf{Input Manager ($\mathcal{IM}$):} The Input Manager coordinates the case data, the features required by each model, the associated performance metadata, and the contextual definitions. These inputs can be revised without modifying the underlying decision process.
+ \item \textbf{Input Manager (\(\mathcal{IM}\)):} The Input Manager coordinates the case data and the features required by each ADM unit. These inputs can be revised without modifying the underlying decision process.
 
- \item \textbf{ADM units ($\mathcal{A}$):} The ADM layer is realized by pre-trained machine-learning models that offer different predictive perspectives on the cases. Each model may use its own attribute subset and contributes one partial decision signal.
+ \item \textbf{ADM units (\(A\)):} The ADM layer is realized by pre-trained machine-learning models that offer different predictive perspectives on the cases. Each ADM unit may use its own attribute subset and contributes one partial decision signal.
 
- \item \textbf{Decision Integration Layer ($\mathcal{OM}$):} The integration layer combines the model assessments into a common predictive score. The contribution of each model is determined from its reported predictive performance.
+ \item \textbf{Decision Integration Layer (\(\mathcal{OM}\)):} The integration layer combines the ADM assessments into a common predictive score. The contribution of each ADM unit is determined from its reported predictive performance.
 
- \item \textbf{Contextual Modulator ($\mathcal{C}$):} Context definitions select the case attributes relevant to a scenario and evaluate their suitability. The modulator then combines this assessment with the predictive score.
+ \item \textbf{Contextual Modulator (\(\mathcal{C}\)):} Context definitions select the case attributes relevant to a scenario and evaluate their suitability. The modulator then combines this assessment with the predictive score through the mapping \(M\).
 \end{itemize}
 
-The following subsections formalize these components and then introduce the explainability and robustness extensions added to the specialization. Figure~\ref{fig:cademas_specialization} summarizes how each CADEMAS component encapsulates its prioritization specialization and how the two extensions attach to the resulting decision process.
+The following subsections formalize these components and then introduce the explainability and robustness extensions added to the specialization. We denote these extensions by \(\mathcal{E}\) and \(\mathcal{R}\), respectively. Figure~\ref{fig:cademas_specialization} summarizes how each CADEMAS component encapsulates its prioritization specialization and how the two extensions attach to the resulting decision process.
 
 \begin{figure}[!t]
 \centering
-\resizebox{\textwidth}{!}{%
-\begin{tikzpicture}[
-  font=\footnotesize,
-  >=Latex,
-  inner/.style={
-    draw,
-    rounded corners=1pt,
-    thin,
-    fill=black!5,
-    align=center,
-    font=\scriptsize,
-    inner sep=3.5pt,
-    text width=3.15cm
-  },
-  title/.style={font=\footnotesize\bfseries, anchor=south},
-  layerlab/.style={font=\scriptsize\itshape},
-  arrow/.style={-{Latex}, thick},
-  extinner/.style={
-    draw,
-    dashed,
-    rounded corners=1pt,
-    thin,
-    fill=black!4,
-    align=center,
-    font=\scriptsize,
-    inner sep=3.5pt,
-    text width=4.4cm
-  }
-]
-% Inner specialization nodes
-\node[inner] (imin) {%
-  $\mathcal{IM}=\langle\mathcal{M},\mathcal{M}_{def},\mathcal{C}_{def},\mathcal{X}\rangle$\\[2pt]
-  $\mathcal{T}$: tabular cases \& specs
-};
-\node[inner, right=0.55cm of imin] (admin) {%
-  $\mathcal{A}=\{M_1,\ldots,M_K\}$ (ML)\\[2pt]
-  $p_{ik}=M_k(x_i)\in[0,1]$
-};
-\node[inner, right=0.55cm of admin] (omin) {%
-  $w_k\geq 0$, $\sum_k w_k=1$\\[2pt]
-  $D_i^{\mathrm{raw}}=\sum_k w_k p_{ik}$
-};
-\node[inner, right=0.55cm of omin] (ctxin) {%
-  $\mu_r$, $\mu_d$;\ $C_i=H(\cdot)$\\[2pt]
-  $D_i^{\mathrm{final}}=M(D_i^{\mathrm{raw}},C_i)$\\[1pt]
-  ranking $\pi_P$
-};
-
-% Outer CADEMAS layer frames
-\node[draw, thick, rounded corners=2pt, inner sep=7pt, fit=(imin),
-  label={[title]above:Input Manager},
-  label={[layerlab,yshift=1pt]below:{CADEMAS $\mathcal{IM}$ / $\mathcal{T}$}}] (im) {};
-\node[draw, thick, rounded corners=2pt, inner sep=7pt, fit=(admin),
-  label={[title]above:ADM units},
-  label={[layerlab,yshift=1pt]below:{CADEMAS $\mathcal{A}$}}] (adm) {};
-\node[draw, thick, rounded corners=2pt, inner sep=7pt, fit=(omin),
-  label={[title]above:Decision Integration},
-  label={[layerlab,yshift=1pt]below:{CADEMAS $\mathcal{OM}$ / $\Phi$}}] (om) {};
-\node[draw, thick, rounded corners=2pt, inner sep=7pt, fit=(ctxin),
-  label={[title]above:Contextual Modulator},
-  label={[layerlab,yshift=1pt]below:{CADEMAS $\mathcal{C}$ / $M$}}] (ctx) {};
-
-\draw[arrow] (im) -- (adm);
-\draw[arrow] (adm) -- (om);
-\draw[arrow] (om) -- (ctx);
-
-% Extensions
-\node[extinner, below=1.35cm of omin, xshift=-2.35cm] (expl) {%
-  \textbf{Explainability}\\[2pt]
-  $\mathcal{E}_i^{\mathrm{pred}}$, $\mathcal{E}_i^{\mathrm{context}}$\\[1pt]
-  $E_i=\Psi(D_i^{\mathrm{final}},D_i^{\mathrm{raw}},C_i,\ldots)$
-};
-\node[extinner, below=1.35cm of omin, xshift=2.35cm] (rob) {%
-  \textbf{Robustness}\\[2pt]
-  $\mathcal{G}_{\mathrm{mod}}=\{(o,\theta_o)\}$\\[1pt]
-  rankings $\{\pi^{(g)}\}_{g\in\mathcal{G}_{\mathrm{mod}}}$
-};
-\node[draw, dashed, thick, rounded corners=2pt, inner sep=6pt, fit=(expl)(rob),
-  fill=black!3,
-  label={[title]above:Extensions (CADEMAS-ML)}] (ext) {};
-
-\draw[arrow, dashed] (om.south) |- ([yshift=2pt]expl.north);
-\draw[arrow, dashed] (ctx.south) |- ([yshift=2pt]rob.north);
-
-\node[font=\scriptsize, anchor=west, text width=0.95\textwidth] at ([yshift=-0.45cm]ext.south west) {%
-Outer solid frames: general CADEMAS layers. Inner filled boxes: specialization with the notation of this section. Dashed frame: extensions beyond the core tuple $\mathcal{S}$.
-};
-\end{tikzpicture}%
-}
-\caption{Specialization of the CADEMAS architecture for prioritization in CADEMAS-ML. Each outer box is a general framework component; the inner box shows the corresponding notation used in this section. The dashed band highlights the explainability and robustness extensions.}
+\includegraphics[width=\textwidth]{figures/instantiation.pdf}
+\caption{Specialization of the CADEMAS architecture for prioritization in CADEMAS-ML. Outer boxes correspond to the general framework components \(\mathcal{IM}\), \(A\), \(\mathcal{OM}\), and \(\mathcal{C}\); inner elements show the notation used in this section for predictive signals, contextual assessment, and the priority score \(p_i\). The extensions \(\mathcal{E}\) (explainability) and \(\mathcal{R}\) (robustness) are highlighted as additions beyond the core tuple \(S\).}
 \label{fig:cademas_specialization}
 \end{figure}
 
 \subsection{Input Manager, ADM Units and Data Representation}\label{sec:input_manager}
 
-The Input Manager $\mathcal{IM}$ gathers the information needed to configure and execute a prioritization process. It is represented as the tuple
+The Input Manager \(\mathcal{IM}\) gathers the information needed to configure and execute a prioritization process. At this level of abstraction, model and context definitions are assumed to be implicit in the ADM units and in the Contextual Modulator, respectively. The Input Manager is therefore represented as the tuple
 
 \begin{equation}
 \mathcal{IM} =
 \langle
-\mathcal{M},
-\mathcal{M}_{def},
-\mathcal{C}_{def},
-\mathcal{X}
+A,
+X
 \rangle,
 \end{equation}
 
@@ -365,270 +267,255 @@ where:
 
 \begin{itemize}
 
-\item $\mathcal{M}={M_1,\ldots,M_K}$ is the collection of pre-trained machine-learning models used as ADM units. Each model provides a partial predictive assessment of the cases and may rely on a different subset of the available features.
+\item \(A=\{ADM_1,\ldots,ADM_n\}\) is the collection of pre-trained machine-learning ADM units. Each \(ADM_k\) provides a partial predictive assessment of the cases and may rely on a different subset of the available features.
 
-\item $\mathcal{M}_{def}={m_1,\ldots,m_K}$ contains the corresponding model definitions. Each definition records the metadata needed to use a model within the instance, including its identity, predictive performance, and input features.
-
-\item $\mathcal{C}_{def}$ is the collection of contextual definitions used to configure the contextual component of the instance. Each definition identifies the attributes relevant to a scenario and the mechanisms used to evaluate their suitability.
-
-\item $\mathcal{X}={x_1,\ldots,x_N}$ is the set of cases to be prioritized. Each case is represented by a set of observable features sufficient to satisfy the input requirements of the configured models and contextual definitions, i.e.,
+\item \(X=\{x_1,\ldots,x_N\}\) is the set of cases to be prioritized. Each case is represented by a set of observable features sufficient to satisfy the input requirements of the configured ADM units and contextual definitions, i.e.,
 
 \begin{equation*}
 	f(x_i) \supseteq
-	\left(\bigcup_{k=1}^{K} f_k\right)
-	\cup f_{\mathcal{C}}.
+	\left(\bigcup_{k=1}^{n} f_k\right)
+	\cup f_{\mathcal{C}},
 \end{equation*}
-where $f_k$ denotes the features required by model $M_k$ and $f_{\mathcal{C}}$ the features required by the configured contextual definition.
+where \(f_k\) denotes the features required by \(ADM_k\) and \(f_{\mathcal{C}}\) the features required by the contextual definition.
 
 \end{itemize}
 
-The representation $\mathcal{T}$ comprises tabular case data together with the structured model and context definitions required for execution. Although these elements are defined as collections to support alternative configurations, each run selects one model collection with its metadata, one contextual definition, and one case dataset. All features required by the selected models and context must be present and mutually consistent. Section~\ref{sec:architecture_features}, Appendix~\ref{app:input_summary}, and Supplementary Material~S1 describe the corresponding files.
-
-
+The representation \(\mathcal{T}\) comprises tabular case data together with the structured ADM and context specifications required for execution. Although these elements are defined as collections to support alternative configurations, each run selects one ADM collection, one contextual definition, and one case dataset. All features required by the selected ADM units and context must be present and mutually consistent. Section~\ref{sec:architecture_features}, Appendix~\ref{app:input_summary}, and Supplementary Material~S1 describe the corresponding files.
 
 \subsection{Decision Integration Layer}\label{sec:decision_integration_layer}
 
-The Decision Integration Layer $\mathcal{OM}$ synthesizes the individual model outputs into the predictive score introduced in Section~\ref{sec:inst_problem}. For a given prioritization scenario, each model $M_k\in\mathcal{M}$ produces a prediction
+The Decision Integration Layer ($\mathcal{OM}$) synthesizes the individual ADM outputs into the predictive score introduced in Section~\ref{sec:inst_problem}. In the present prioritization setting, each $ADM_k\in\mathcal{A}$ corresponds to a predictive model and produces a partial decision signal for case $x_i$:
 
-\begin{equation}
-p_{ik}=M_k(x_i), \qquad p_{ik}\in[0,1],
-\end{equation}
+\begin{equation*}
+o_{ik}=ADM_k(x_i), \qquad o_{ik}\in[0,1],
+\end{equation*}
+where $o_{ik}$ denotes the output produced by the $k$-th predictive model for case $x_i$. For each case, let
 
-for case $x_i$. These predictions are the partial decision signals of the general architecture (Section~\ref{sec:cademas}).
+\begin{equation*}
+O_i=\{o_{i1},\ldots,o_{in}\}
+\end{equation*}
+denote the collection of model outputs associated with $x_i$.
 
-To account for differences in predictive performance, each model is assigned a non-negative weight $w_k$, with
+To account for differences in predictive performance, each ADM unit is assigned a non-negative weight $w_k$, with
 
-\begin{equation}
+\begin{equation*}
 w_k\geq0,
 \qquad
-\sum_{k=1}^{K}w_k=1.
-\end{equation}
+\sum_{k=1}^{n}w_k=1.
+\end{equation*}
 
 The integrated decision signal for case $x_i$ is then obtained as
 
-\begin{equation}
-D_i^{\mathrm{raw}}
-=\Phi(p_{i1},\ldots,p_{iK})=\sum_{k=1}^{K}w_kp_{ik},
+\begin{equation*}
+d_i^{\mathrm{final}}
+=
+\Phi(O_i)
+=
+\sum_{k=1}^{n}w_k o_{ik},
 \label{eq:integrated_decision}
-\end{equation}
-
-where $D_i^{\mathrm{raw}}\in[0,1]$ is the raw decision proposal resulting from the integration of the ADM outputs. In the present prioritization setting, this value is interpreted as an integrated \textit{predictive score}, which is then passed to the Contextual Modulator.
-
-The weights are derived from reported predictive performance. Integration operates on model outputs without modifying the models themselves, so heterogeneous predictors can contribute to a common decision representation.
-
-This is cooperation at the decision level rather than a requirement for joint training. The models may have been developed independently, with different training data, feature subsets, algorithms, or predictive objectives.
-
+\end{equation*}
+where $d_i^{\mathrm{final}}\in[0,1]$ is the integrated predictive score for case $x_i$. In the present prioritization setting, this value represents the combined predictive signal before contextual modulation and is subsequently passed to the Contextual Modulator. 
+The weights are derived from reported predictive performance. Integration operates directly on the outputs of the predictive models without modifying the models themselves, allowing heterogeneous predictors to contribute to a common predictive representation.
+The predictive models may have been developed independently, using different training data, feature subsets, algorithms, or predictive objectives. Their combination therefore takes place at the decision level through the integration of their outputs.
 
 \subsection{Contextual Modulator}\label{sec:contextual_modulator}
 
-The Contextual Modulator $\mathcal{C}$ represents contextual conditions through a declarative fuzzy specification. Following the role of context in \citet{NovoaHernandez2026} and the use of fuzzy propositions in the attrition application of \citet{Godz2026}, each context definition specifies the case attributes to be considered, the corresponding fuzzy propositions, and the aggregation rules used to obtain a contextual assessment. CADEMAS-ML externalizes these definitions as JSON specifications, so different contexts and decision policies can be configured without changing the application code.
+The Contextual Modulator \(\mathcal{C}\) represents contextual conditions through a declarative fuzzy specification. Following the role of context in \citet{NovoaHernandez2026} and the use of fuzzy propositions in the attrition application of \citet{Godz2026}, each context definition specifies the case attributes to be considered, the corresponding fuzzy propositions, and the aggregation rules used to obtain a contextual assessment. 
+%CADEMAS-ML externalizes these definitions as JSON specifications, so different contexts and decision policies can be configured without changing the application code.
 
-Formally, let $V_r$ denote a case attribute and $\tilde{F}_r$ a fuzzy set representing a linguistic predicate over the universe of $V_r$. For case $x_i$, an \textit{atomic contextual rule} evaluates the proposition ``$V_r$ is $\tilde{F}_r$'' as
+Formally, let \(V_r\) denote a case attribute and \(\tilde{F}_r\) a fuzzy set representing a linguistic predicate over the universe of \(V_r\). For case \(x_i\), an \textit{atomic contextual rule} evaluates the proposition ``\(V_r\) is \(\tilde{F}_r\)'' as
 
 \begin{equation}
 \mu_r(x_i)=\mu_{\tilde{F}_r}(x_{ir})\in[0,1],
 \label{eq:atomic_mu}
 \end{equation}
+where \(x_{ir}\) is the value of \(V_r\) for case \(x_i\). The supported numerical and categorical membership functions, including triangular, trapezoidal, and linear forms, are specified in Appendix~\ref{app:context_math_mf}.
 
-where $x_{ir}$ is the value of $V_r$ for case $x_i$. The supported numerical and categorical membership functions, including triangular, trapezoidal, and linear forms, are specified in Appendix~\ref{app:context_math_mf}.
-
-Atomic rules may also include activation conditions. Let $m_r(x_i)\in\{0,1\}$ indicate whether the \texttt{when} condition of rule $r$ is satisfied for case $x_i$. Its effective membership is then
+Atomic rules may also include activation conditions. Let \(m_r(x_i)\in\{0,1\}\) indicate whether the \texttt{when} condition of rule \(r\) is satisfied for case \(x_i\). Its effective membership is then
 
 \begin{equation}
 \mu_r^{*}(x_i)=m_r(x_i)\mu_r(x_i),
 \label{eq:conditional_mu}
 \end{equation}
-with $m_r(x_i)=1$ for unconditional rules. This allows conditional policies to be expressed declaratively, without modifying the case data or introducing procedural logic.
+with \(m_r(x_i)=1\) for unconditional rules. This allows conditional policies to be expressed declaratively, without modifying the case data or introducing procedural logic.
 
-Context definitions may further include \textit{derived rules} that combine previously evaluated memberships. For a derived rule $d$, its membership is given by
+Context definitions may further include \textit{derived rules} that combine previously evaluated memberships. For a derived rule \(d\), its membership is given by
 
 \begin{equation}
 \mu_d(x_i)=
-G_d\left(
+\Lambda_d\left(
 \mu_{r_1}^{*}(x_i),\ldots,\mu_{r_q}^{*}(x_i)
 \right),
 \label{eq:derived_mu}
 \end{equation}
-where $G_d$ is an aggregation operator. The implemented operators (minimum-based \texttt{AND}, maximum-based \texttt{OR}, algebraic \texttt{PRODUCT}, and arithmetic \texttt{AVERAGE}) are defined in Appendix~\ref{app:context_math_derived}. The contextual alignment score for case $x_i$ is finally obtained as
+where \(\Lambda_d\) is an aggregation operator. The implemented operators (minimum-based \texttt{AND}, maximum-based \texttt{OR}, algebraic \texttt{PRODUCT}, and linear \texttt{AVERAGE}) are defined in Appendix~\ref{app:context_math_derived}. The contextual alignment score for case \(x_i\) is finally obtained as
 
 \begin{equation}
-C_i=
-H\left(
+c_i^{\mathrm{final}}=
+\Lambda_{\mathrm{final}}\left(
 \mu_1(x_i),\ldots,\mu_L(x_i)
 \right),
 \label{eq:context_score}
 \end{equation}
+where \(\Lambda_{\mathrm{final}}\) is the final aggregation policy specified by the context definition.
 
-where $H$ is the final aggregation policy specified by the context definition.
-
-The resulting $C_i$ represents the degree to which case $x_i$ satisfies the contextual conditions of the selected scenario. All atomic and derived memberships are retained by the tool, so the contextual assessment remains traceable to the underlying fuzzy rules.
+The resulting \(c_i^{\mathrm{final}}\) represents the degree to which case \(x_i\) satisfies the contextual conditions of the selected scenario. All atomic and derived memberships are retained by the tool, so the contextual assessment remains traceable to the underlying fuzzy rules.
 
 \subsubsection{Contextual Modulation}
 
-The contextual assessment $C_i$ is subsequently used by the Contextual Modulator to transform the raw decision proposal $D_i^{\mathrm{raw}}$ into the final decision value used for prioritization. Within the freedom provided by the general formulation (Section~\ref{sec:cademas}), CADEMAS-ML therefore offers three alternative contextual modulation operators for combining predictive and contextual evidence: the weighted arithmetic mean, the weighted geometric mean, and the minimum operator.
+The contextual assessment \(c_i^{\mathrm{final}}\) is subsequently used by the Contextual Modulator \(\mathcal{C}\) to transform the ADM-branch score \(d_i^{\mathrm{final}}\) into the priority score \(p_i\) defined in Section~\ref{sec:inst_problem}. Within the freedom provided by the general formulation (Section~\ref{sec:cademas}), CADEMAS-ML instantiates this component with three alternative contextual modulation operators, following the analysis in \citet{novoa2026aggregation}: the weighted linear mean, the weighted geometric mean, and the minimum operator.
 
-Let $D_i^{\mathrm{raw}}\in[0,1]$ denote the integrated predictive signal and $C_i\in[0,1]$ the contextual alignment score. The final decision value is obtained as
-
+Let \(d_i^{\mathrm{final}}\in[0,1]\) denote the integrated predictive signal and \(c_i^{\mathrm{final}}\in[0,1]\) the contextual alignment score. The priority score is obtained by instantiating the priority function \(P\) as follows:
 \begin{equation*}
-D_i^{\mathrm{final}}
+p_i
+:=
+P(x_i)
 =
-\Gamma\left(D_i^{\mathrm{raw}},C_i\right),
+\Gamma\left(
+d_i^{\mathrm{final}},c_i^{\mathrm{final}}
+\right),
 \label{eq:contextual_modulation}
 \end{equation*}
-
-where $\Gamma$ denotes the selected contextual modulation operator.
-
-For the weighted arithmetic operator, used in previous CADEMAS applications \citep{NovoaHernandez2026,Godz2026}, the modulation is
-
-\begin{equation*}
-D_i^{\mathrm{final}}
+where \(\Gamma \in \{\Gamma_{\mathrm{linear}}, \Gamma_{\mathrm{geom}}, \Gamma_{\mathrm{min}}\}\) denotes the selected contextual modulation operator. Specifically, the weighted linear operator is defined as
+\begin{equation}
+\Gamma_{\mathrm{linear}}
+\left(
+d_i^{\mathrm{final}},c_i^{\mathrm{final}}
+\right)
 =
-\Gamma_{\mathrm{arith}}
-\left(D_i^{\mathrm{raw}},C_i\right)
-=
-\lambda D_i^{\mathrm{raw}}
+\lambda d_i^{\mathrm{final}}
 +
-(1-\lambda)C_i,
-\qquad \lambda\in[0,1].
+(1-\lambda)c_i^{\mathrm{final}},
+\qquad \lambda\in[0,1],
 \label{eq:linear_modulation}
-\end{equation*}
-
-CADEMAS-ML additionally implements the weighted geometric operator,
-
-\begin{equation*}
-D_i^{\mathrm{final}}
-=
+\end{equation}
+which has been used in previous CADEMAS applications \citep{NovoaHernandez2026,Godz2026}. In contrast, the weighted geometric operator is given by
+\begin{equation}
 \Gamma_{\mathrm{geom}}
-\left(D_i^{\mathrm{raw}},C_i\right)
+\left(
+d_i^{\mathrm{final}},c_i^{\mathrm{final}}
+\right)
 =
-\left(D_i^{\mathrm{raw}}\right)^{\lambda}
-\left(C_i\right)^{1-\lambda},
+\left(d_i^{\mathrm{final}}\right)^{\lambda}
+\left(c_i^{\mathrm{final}}\right)^{1-\lambda}, \qquad \lambda\in[0,1],
 \label{eq:geometric_modulation}
-\end{equation*}
-
-and the minimum operator,
-
-\begin{equation*}
-D_i^{\mathrm{final}}
-=
+\end{equation}
+whereas the minimum operator is defined as
+\begin{equation}
 \Gamma_{\min}
-\left(D_i^{\mathrm{raw}},C_i\right)
+\left(
+d_i^{\mathrm{final}},c_i^{\mathrm{final}}
+\right)
 =
 \min\left\{
-D_i^{\mathrm{raw}},C_i
+d_i^{\mathrm{final}},c_i^{\mathrm{final}}
 \right\}.
 \label{eq:min_modulation}
-\end{equation*}
+\end{equation}
 
-The inclusion of these alternatives follows the analysis in \citet{novoa2026aggregation}. In particular, the geometric and minimum operators provide more restrictive forms of cooperation than the arithmetic operator, reducing the extent to which a low predictive score or a low contextual alignment can be compensated by a high value of the other component. The parameter $\lambda$ controls the relative contribution of the two sources for the arithmetic and geometric operators, whereas the minimum operator has no weighting parameter.
-
-
+The linear operator allows compensation between predictive and contextual evidence, while the geometric and minimum operators impose more restrictive forms of cooperation. The parameter \(\lambda\) controls the relative contribution of the two sources for the linear and geometric operators; the minimum operator is parameter-free.
 \subsection{Explainability Extension}\label{sec:explainability}
 
-CADEMAS-ML extends the prioritization workflow with a case-level explanation mechanism intended to make the cooperative decision process inspectable. The extension retains intermediate computational artifacts and organizes them into two complementary layers: a predictive explanation, which estimates the local influence of input features on $D_i^{\mathrm{raw}}$, and a contextual explanation, which traces the fuzzy evidence underlying $C_i$.
+CADEMAS-ML extends the prioritization workflow with a case-level explanation mechanism intended to make the cooperative decision process inspectable. This extension is denoted by \(\mathcal{E}\). It retains intermediate computational artifacts and organizes them into two complementary layers: a predictive explanation, which estimates the local influence of input features on \(d_i^{\mathrm{final}}\), and a contextual explanation, which traces the fuzzy evidence underlying \(c_i^{\mathrm{final}}\).
 
-For a selected case $x_i$, the explanation preserves the aggregation mechanism used to obtain the final decision. The predictive and contextual component values, $D_i^{\mathrm{raw}}$ and $C_i$, are reported together with the selected aggregation operator and, when applicable, its parameter $\lambda$. For the linear operator the two components can be read additively; for the weighted geometric operator the explanation reflects their multiplicative combination; and for the minimum operator the lower component is identified as the limiting factor.
+For a selected case \(x_i\), the explanation preserves the aggregation mechanism used to obtain the priority score. The predictive and contextual component values, \(d_i^{\mathrm{final}}\) and \(c_i^{\mathrm{final}}\), are reported together with the selected aggregation operator and, when applicable, its parameter \(\lambda\). For the linear operator the two components can be read additively; for the weighted geometric operator the explanation reflects their multiplicative combination; and for the minimum operator the lower component is identified as the limiting factor.
 
-To explain the predictive component, CADEMAS-ML employs a model-agnostic perturbation procedure suitable for the heterogeneous and potentially ensemble-based ML models supported by the tool. For each model $M_k$ and feature $f$, the local effect is estimated by comparing the original prediction with the prediction obtained after replacing the observed feature value with a cohort reference value $b_f$:
+To explain the predictive component, CADEMAS-ML employs a model-agnostic perturbation procedure suitable for the heterogeneous and potentially ensemble-based ML models supported by the tool. For each ADM unit \(ADM_k\) and feature \(f\), the local effect is estimated by comparing the original prediction with the prediction obtained after replacing the observed feature value with a cohort reference value \(b_f\):
 
 \begin{equation}
 \Delta_{ikf}
 =
-M_k(x_i)-M_k\left(x_i^{(f\leftarrow b_f)}\right),
+ADM_k(x_i)-ADM_k\left(x_i^{(f\leftarrow b_f)}\right),
 \label{eq:local_attribution_model}
 \end{equation}
-where $b_f$ is the median of the reference cohort for numerical features and the mode for categorical features. The model-specific effects are then integrated using the same weights employed by the Decision Integration Layer:
+where \(b_f\) is the median of the reference cohort for numerical features and the mode for categorical features. The ADM-specific effects are then integrated using the same weights employed by the Decision Integration Layer:
 
 \begin{equation}
 \Delta_{if}
 =
-\sum_{k=1}^{K}w_k\Delta_{ikf}.
+\sum_{k=1}^{n}w_k\Delta_{ikf}.
 \label{eq:local_attribution_global}
 \end{equation}
 
 Positive values indicate that the observed feature value increases the integrated predictive score relative to the reference value, whereas negative values indicate a decrease. These quantities provide approximate local feature effects in probability points and should not be interpreted as causal estimates. The resulting predictive explanation can therefore be represented as
 
 \begin{equation}
-\mathcal{E}_i^{\mathrm{pred}}
+E_i^{\mathrm{pred}}
 =
 \left\{
 (f,\Delta_{if})
-\right\}_{f\in\mathcal{F}},
+\right\}_{f\in F},
 \label{eq:predictive_explanation}
 \end{equation}
-where $\mathcal{F}$ denotes the set of features considered in the perturbation analysis.
+where \(F\) denotes the set of features considered in the perturbation analysis.
 
-The contextual explanation traces the assessment $C_i$ back to the fuzzy propositions and derived rules defined in the selected context. By retaining the membership values of the evaluated rules, the tool exposes the intermediate evidence underlying the contextual aggregation:
+The contextual explanation traces the assessment \(c_i^{\mathrm{final}}\) back to the fuzzy propositions and derived rules defined in the selected context. By retaining the membership values of the evaluated rules, the tool exposes the intermediate evidence underlying the contextual aggregation:
 
 \begin{equation}
-\mathcal{E}_i^{\mathrm{context}}
+E_i^{\mathrm{context}}
 =
 \left\{
 (r,\mu_r^*(x_i))
-\right\}_{r\in\mathcal{R}_{a}}
+\right\}_{r\in R_{a}}
 \cup
 \left\{
 (d,\mu_d(x_i))
-\right\}_{d\in\mathcal{R}_{d}},
+\right\}_{d\in R_{d}},
 \label{eq:context_explanation}
 \end{equation}
-where $\mathcal{R}_{a}$ and $\mathcal{R}_{d}$ denote the sets of atomic and derived rules evaluated for case $x_i$, respectively. The use of $\mu_r^*(x_i)$ for atomic rules accounts for possible activation conditions. This representation connects $C_i$ to the conditions satisfied by the case and to the aggregation steps that produced it.
+where \(R_{a}\) and \(R_{d}\) denote the sets of atomic and derived rules evaluated for case \(x_i\), respectively. The use of \(\mu_r^*(x_i)\) for atomic rules accounts for possible activation conditions. This representation connects \(c_i^{\mathrm{final}}\) to the conditions satisfied by the case and to the aggregation steps that produced it.
 
-The two explanation layers are subsequently combined into a deterministic natural-language representation. Formally, the explanation for case $x_i$ can be represented as
+The two explanation layers are subsequently combined into a deterministic natural-language representation. Formally, the explanation for case \(x_i\) can be represented as
 
 \begin{equation}
-E_i = \Psi\left(D_i^{\mathrm{final}}, D_i^{\mathrm{raw}}, C_i, \mathcal{E}_i^{\mathrm{pred}}, \mathcal{E}_i^{\mathrm{context}}, \Gamma \right),	
+E_i = \Psi\left(p_i, d_i^{\mathrm{final}}, c_i^{\mathrm{final}}, E_i^{\mathrm{pred}}, E_i^{\mathrm{context}}, \Gamma \right),	
 \label{eq:natural_language_explanation}
 \end{equation}
-where $\Gamma$ denotes the selected aggregation mechanism and its parameters when applicable. The function $\Psi$ translates this quantitative evidence into a structured textual account of the predictive and contextual drivers of the final prioritization. The underlying artifacts remain available for inspection alongside the natural-language summary.
+where \(\Gamma\) denotes the selected aggregation mechanism and its parameters when applicable. The function \(\Psi\) translates this quantitative evidence into a structured textual account of the predictive and contextual drivers of the final prioritization. The underlying artifacts remain available for inspection alongside the natural-language summary.
 
 \subsection{Robustness Extension}\label{sec:robustness}
 
-As anticipated in Section~\ref{sec:intro}, robustness analysis evaluates how stable the prioritization results remain under alternative contextual modulation configurations. Let
+As anticipated in Section~\ref{sec:intro}, the robustness extension, denoted by \(\mathcal{R}\), evaluates how stable the prioritization results remain under alternative contextual modulation configurations. Let
 \[
-\mathcal{G}_{\mathrm{mod}}
+Q_{\mathrm{mod}}
 =
 \left\{
-g=(o,\theta_o)
-\right\}
+q=(\gamma,\theta_\gamma)
+\right\},
+\qquad
+\gamma\in\{\Gamma_{\mathrm{arith}},\Gamma_{\mathrm{geom}},\Gamma_{\min}\},
 \]
-denote the set of modulation configurations explored by the analyst, where $o$ identifies the selected aggregation operator and $\theta_o$ denotes its associated parameterization, which may be empty for parameter-free operators. Each configuration $g\in\mathcal{G}_{\mathrm{mod}}$ induces a prioritization score vector
+denote the set of modulation configurations explored by the analyst, where \(\gamma\) is one of the modulation operators introduced in Section~\ref{sec:contextual_modulator} and \(\theta_\gamma\) denotes its associated parameterization, which may be empty for parameter-free operators. Each configuration \(q\in Q_{\mathrm{mod}}\) induces a priority score vector
 \[
-\mathbf{D}^{(g)}
+\mathbf{p}^{(q)}
 =
 \left(
-D_1^{(g)},\ldots,D_N^{(g)}
-\right)
+p_1^{(q)},\ldots,p_N^{(q)}
+\right),
+\qquad
+p_i^{(q)}:=P^{(q)}(x_i),
 \]
-and an associated ranking $\pi^{(g)}$ over the cases.
+and an associated ranking \(\pi^{(q)}\) over the cases.
 
-Within-operator robustness compares different parameterizations of the same aggregation operator. For the linear and weighted geometric operators, the analyst can explore a set of $\lambda$ values and compare the resulting scores and rankings. The parameter-free minimum operator can be included as a reference.
+Within-operator robustness compares different parameterizations of the same aggregation operator. For the linear and weighted geometric operators, the analyst can explore a set of \(\lambda\) values and compare the resulting scores and rankings. The parameter-free minimum operator can be included as a reference.
 
 Across-operator robustness instead changes the aggregation mechanism while holding the predictive and contextual signals fixed. The available operators form the set
 \[
-\mathcal{O}
-=
-\{
-\mathrm{linear},
-\mathrm{geometric},
-\mathrm{minimum}
-\}
+\{\Gamma_{\mathrm{arith}},\Gamma_{\mathrm{geom}},\Gamma_{\min}\}
 \]
 and may induce different scores and rankings. Comparing these configurations helps identify cases whose prioritization remains stable and cases whose position is sensitive to the selected operator.
 
 More generally, the tool considers the collection
 \[
-\mathcal{R}_{\mathcal{G}}
+\Pi_{Q}
 =
 \left\{
-\pi^{(g)}:g\in\mathcal{G}_{\mathrm{mod}}
+\pi^{(q)}:q\in Q_{\mathrm{mod}}
 \right\}
 \]
 of rankings induced by the explored configurations. The analyst can inspect these rankings individually or jointly, and can combine within-operator and across-operator comparisons as needed.
 
 The analysis does not assume that one aggregation mechanism is universally preferred. It shows how strongly the conclusions depend on the balance between predictive and contextual evidence, and on the selected operator.
-
-% ----------------------------------------------------------------------
 
 \section{Architecture and main functionalities}\label{sec:architecture_features}\label{sec:results}
 % Transición de la teoría a la herramienta de software (CADEMAS-ML).
