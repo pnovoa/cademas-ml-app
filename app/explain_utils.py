@@ -218,6 +218,45 @@ def _format_balance_phrase(lambda_val: float) -> str:
     return "context-policy-led"
 
 
+def _format_modulation_phrase(
+    modulation_operator: str,
+    lambda_val: float,
+    ri: float,
+    ci: float,
+) -> str:
+    """Describe how d and c were combined into the priority score p for the NL summary."""
+    from modulation import (
+        OPERATOR_GEOMETRIC,
+        OPERATOR_LINEAR,
+        normalize_operator,
+    )
+
+    op = normalize_operator(modulation_operator)
+    if op == OPERATOR_LINEAR:
+        balance_phrase = _format_balance_phrase(lambda_val)
+        return (
+            f"a {balance_phrase} Linear modulation posture (λ={lambda_val:.2f}), "
+            f"with p = λ·d + (1−λ)·c"
+        )
+    if op == OPERATOR_GEOMETRIC:
+        balance_phrase = _format_balance_phrase(lambda_val)
+        return (
+            f"a {balance_phrase} Geometric modulation posture (λ={lambda_val:.2f}), "
+            f"with p = d^λ · c^(1−λ)"
+        )
+    limiting = (
+        "the integrated predictive score (d)"
+        if ri <= ci
+        else "the contextual alignment score (c)"
+    )
+    if abs(ri - ci) < 1e-12:
+        limiting = "both components equally"
+    return (
+        f"a Minimum modulation (parameter-free), "
+        f"with p = min{{d, c}} limited by {limiting}"
+    )
+
+
 DEFAULT_NLG_VOCABULARY: dict[str, str] = {
     "target_case": "the case",
     "target_action": "intervention or resource allocation",
@@ -359,6 +398,7 @@ def build_nl_summary(
     fuzzy_row: pd.Series,
     vocabulary: dict[str, str] | None = None,
     context_config: dict | None = None,
+    modulation_operator: str = "linear",
 ) -> str:
     """Deterministic, domain-agnostic analyst-style summary for a selected case."""
     vocab = _resolve_nlg_vocabulary(vocabulary)
@@ -366,18 +406,20 @@ def build_nl_summary(
 
     risk_level = classify_risk_level(ri)
     context_level = classify_context_level(ci)
-    balance_phrase = _format_balance_phrase(lambda_val)
+    modulation_phrase = _format_modulation_phrase(
+        modulation_operator, lambda_val, ri, ci
+    )
     ml_phrase = _format_ml_driver_phrase(top_ml, master_row)
     context_phrase = _format_context_sentence(ci, fuzzy_row, context_config)
     verdict = format_priority_verdict(priority, vocab)
 
     body = (
-        f"The case prioritization score for {_bold_label(str(case_id))} is "
+        f"The case priority score for {_bold_label(str(case_id))} is "
         f"{_bold_label(f'{priority:.0%}')}. "
-        f"This decision reflects a {balance_phrase} posture (λ={lambda_val:.2f}), "
-        f"combining {risk_level} predictive risk ({ri:.0%}) with "
+        f"This decision reflects {modulation_phrase}, "
+        f"combining {risk_level} integrated predictive evidence ({ri:.0%}) with "
         f"{context_level} contextual alignment ({ci:.0%}). "
-        f"On the predictive side, risk was driven mainly by {ml_phrase}. "
+        f"On the predictive side, the signal was driven mainly by {ml_phrase}. "
         f"In context, {target_case} {context_phrase}."
     )
     return f"{body}\n\n{verdict}"

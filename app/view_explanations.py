@@ -17,6 +17,12 @@ from explain_utils import (
     resolve_feature_column,
     top_contributions,
 )
+from modulation import (
+    OPERATOR_GEOMETRIC,
+    OPERATOR_LINEAR,
+    modulate,
+    normalize_operator,
+)
 
 
 def _priority_column() -> str:
@@ -26,11 +32,11 @@ def _priority_column() -> str:
 ML_ATTRIBUTION_HELP = """
 Contributions show how each feature shifts the model's predicted probability for the selected case relative to a cohort baseline.
 
-**How they are calculated:** For each feature, the case value is temporarily replaced by the cohort baseline (median for numeric features, most frequent category for categorical ones). The contribution is the difference between the original prediction and the perturbed prediction: Δ = p(case) − p(case with feature at baseline). Per-model values are then combined using each model's weight w_j in the global ML risk aggregation.
+**How they are calculated:** For each feature, the case value is temporarily replaced by the cohort baseline (median for numeric features, most frequent category for categorical ones). The contribution is the difference between the original prediction and the perturbed prediction: Δ = p(case) − p(case with feature at baseline). Per-model values are then combined using each model's weight w_k in the integrated predictive score.
 
 **Units:** Probability points on a 0–1 scale (dimensionless). A value of +0.05 means the feature's actual value increases the model probability by about 5 percentage points compared with the baseline.
 
-**How to read them for this case:** Red bars indicate features that push ML risk up; green bars push it down. Larger magnitudes mark stronger local drivers among the top contributors. These are approximate local effects (not causal impacts) and should be read together with the global Ri score and contextual alignment.
+**How to read them for this case:** Red bars indicate features that push the integrated predictive score up; green bars push it down. Larger magnitudes mark stronger local drivers among the top contributors. These are approximate local effects (not causal impacts) and should be read together with the integrated predictive score (d) and contextual alignment (c).
 """
 
 
@@ -129,58 +135,173 @@ def _model_display_name(model_name: str, feature_config: dict | None) -> str:
     return stem.replace("_", " ")
 
 
-def _render_level1(case_row: pd.Series, lambda_val: float) -> None:
-    st.subheader("Global prioritization breakdown")
+def _render_level1(
+    case_row: pd.Series,
+    lambda_val: float,
+    modulation_operator: str,
+) -> None:
+    st.subheader("Priority score breakdown")
+    op = normalize_operator(modulation_operator)
     priority = float(case_row[_priority_column()])
     ri = float(case_row["Ri_Global_Risk"])
     ci = float(case_row["Ci_Context_Score"])
-    ml_part = lambda_val * ri
-    ctx_part = (1 - lambda_val) * ci
+
+    if op == OPERATOR_LINEAR:
+        ml_part = lambda_val * ri
+        ctx_part = (1 - lambda_val) * ci
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Priority score (p)", f"{priority:.1%}")
+        c2.metric("Integrated predictive (d)", f"{ri:.1%}")
+        c3.metric("Contextual alignment (c)", f"{ci:.1%}")
+        c4.metric("Lambda (λ)", f"{lambda_val:.2f}")
+
+        breakdown = pd.DataFrame(
+            {
+                "Component": [
+                    "Predictive contribution\n(λ·d)",
+                    "Contextual contribution\n((1−λ)·c)",
+                ],
+                "Value": [ml_part, ctx_part],
+                "Share": [
+                    ml_part / priority if priority else 0,
+                    ctx_part / priority if priority else 0,
+                ],
+            }
+        )
+
+        chart = (
+            alt.Chart(breakdown)
+            .mark_bar()
+            .encode(
+                y=alt.Y(
+                    "Component:N",
+                    sort="-x",
+                    title=None,
+                    axis=alt.Axis(
+                        labelLimit=700,
+                        labelOverlap=False,
+                        labelPadding=8,
+                    ),
+                ),
+                x=alt.X("Value:Q", title="Contribution to priority score"),
+                color=alt.Color(
+                    "Component:N",
+                    scale=alt.Scale(range=["#1E88E5", "#43A047"]),
+                    legend=None,
+                ),
+                tooltip=[
+                    alt.Tooltip("Component:N"),
+                    alt.Tooltip("Value:Q", format=".3f"),
+                    alt.Tooltip("Share:Q", format=".1%"),
+                ],
+            )
+            .properties(height=150)
+            .configure_view(strokeWidth=0, clip=False)
+        )
+        st.altair_chart(chart, use_container_width=True)
+        st.caption(
+            f"Linear: p = λ·d + (1−λ)·c = "
+            f"{lambda_val:.2f}×{ri:.3f} + {1 - lambda_val:.2f}×{ci:.3f} = {priority:.3f}"
+        )
+        return
+
+    if op == OPERATOR_GEOMETRIC:
+        ri_factor = ri ** lambda_val
+        ci_factor = ci ** (1 - lambda_val)
+        recomputed = float(modulate(ri, ci, op, lambda_val))
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Priority score (p)", f"{priority:.1%}")
+        c2.metric("Integrated predictive (d)", f"{ri:.1%}")
+        c3.metric("Contextual alignment (c)", f"{ci:.1%}")
+        c4.metric("Lambda (λ)", f"{lambda_val:.2f}")
+
+        factors = pd.DataFrame(
+            {
+                "Factor": [
+                    f"d^λ = {ri:.3f}^{lambda_val:.2f}",
+                    f"c^(1−λ) = {ci:.3f}^{1 - lambda_val:.2f}",
+                ],
+                "Value": [ri_factor, ci_factor],
+            }
+        )
+        chart = (
+            alt.Chart(factors)
+            .mark_bar()
+            .encode(
+                y=alt.Y("Factor:N", title=None, sort="-x"),
+                x=alt.X("Value:Q", title="Multiplicative factor"),
+                color=alt.Color(
+                    "Factor:N",
+                    scale=alt.Scale(range=["#1E88E5", "#43A047"]),
+                    legend=None,
+                ),
+                tooltip=[
+                    alt.Tooltip("Factor:N"),
+                    alt.Tooltip("Value:Q", format=".4f"),
+                ],
+            )
+            .properties(height=150)
+            .configure_view(strokeWidth=0, clip=False)
+        )
+        st.altair_chart(chart, use_container_width=True)
+        st.caption(
+            f"Geometric: p = d^λ · c^(1−λ) = "
+            f"{ri_factor:.4f} × {ci_factor:.4f} = {recomputed:.3f}"
+        )
+        st.info(
+            "Under the geometric operator the combination is multiplicative, "
+            "not an additive split of p into λ·d and (1−λ)·c."
+        )
+        return
+
+    # Minimum
+    limiting = (
+        "Integrated predictive score (d)"
+        if ri <= ci
+        else "Contextual alignment score (c)"
+    )
+    if abs(ri - ci) < 1e-12:
+        limiting = "Both (d = c)"
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Prioritization Score", f"{priority:.1%}")
-    c2.metric("ML Risk (Ri)", f"{ri:.1%}")
-    c3.metric("Context (Ci)", f"{ci:.1%}")
-    c4.metric("Lambda (λ)", f"{lambda_val:.2f}")
+    c1.metric("Priority score (p)", f"{priority:.1%}")
+    c2.metric("Integrated predictive (d)", f"{ri:.1%}")
+    c3.metric("Contextual alignment (c)", f"{ci:.1%}")
+    c4.metric("Lambda (λ)", "N/A")
 
-    breakdown = pd.DataFrame(
+    comparison = pd.DataFrame(
         {
             "Component": [
-                "ML contribution\n(λ·Ri)",
-                "Context contribution\n((1−λ)·Ci)",
+                "Integrated predictive score (d)",
+                "Contextual alignment score (c)",
             ],
-            "Value": [ml_part, ctx_part],
-            "Share": [
-                ml_part / priority if priority else 0,
-                ctx_part / priority if priority else 0,
+            "Value": [ri, ci],
+            "Role": [
+                "Limiting factor" if ri <= ci else "Non-binding",
+                "Limiting factor" if ci <= ri else "Non-binding",
             ],
         }
     )
-
     chart = (
-        alt.Chart(breakdown)
+        alt.Chart(comparison)
         .mark_bar()
         .encode(
-            y=alt.Y(
-                "Component:N",
-                sort="-x",
-                title=None,
-                axis=alt.Axis(
-                    labelLimit=700,
-                    labelOverlap=False,
-                    labelPadding=8,
-                ),
-            ),
-            x=alt.X("Value:Q", title="Contribution to prioritization"),
+            y=alt.Y("Component:N", title=None, sort="-x"),
+            x=alt.X("Value:Q", title="Score"),
             color=alt.Color(
-                "Component:N",
-                scale=alt.Scale(range=["#1E88E5", "#43A047"]),
-                legend=None,
+                "Role:N",
+                scale=alt.Scale(
+                    domain=["Limiting factor", "Non-binding"],
+                    range=["#E53935", "#90A4AE"],
+                ),
+                legend=alt.Legend(title=None),
             ),
             tooltip=[
                 alt.Tooltip("Component:N"),
                 alt.Tooltip("Value:Q", format=".3f"),
-                alt.Tooltip("Share:Q", format=".1%"),
+                alt.Tooltip("Role:N"),
             ],
         )
         .properties(height=150)
@@ -188,7 +309,8 @@ def _render_level1(case_row: pd.Series, lambda_val: float) -> None:
     )
     st.altair_chart(chart, use_container_width=True)
     st.caption(
-        f"P = λ·Ri + (1−λ)·Ci = {lambda_val:.2f}×{ri:.3f} + {1 - lambda_val:.2f}×{ci:.3f} = {priority:.3f}"
+        f"Minimum: p = min{{d, c}} = min{{{ri:.3f}, {ci:.3f}}} = {priority:.3f}. "
+        f"Limiting factor: {limiting}."
     )
 
 
@@ -200,7 +322,7 @@ def _render_level2(
     ml_details: dict,
     feature_config: dict | None,
 ) -> None:
-    _subheader_with_help("ML risk attribution", ML_ATTRIBUTION_HELP)
+    _subheader_with_help("Predictive attribution", ML_ATTRIBUTION_HELP)
     aggregated = ml_attributions.get("aggregated")
     if aggregated is None or aggregated.empty:
         st.info("ML attributions are not available for this run.")
@@ -228,7 +350,7 @@ def _render_level2(
         chart_df,
         y_field="Feature",
         x_field="Contribution",
-        x_title="Weighted contribution to ML risk",
+        x_title="Weighted contribution to integrated predictive score",
         color_condition=alt.condition(
             alt.datum.Contribution > 0,
             alt.value("#e13f40"),
@@ -294,7 +416,7 @@ def _render_level3(
 
     if context_config.get("logic"):
         st.info(
-            "Context score (Ci) was computed from the declarative logic tree in the context JSON. "
+            "Contextual alignment score (c) was computed from the declarative logic tree in the context JSON. "
             "The sidebar aggregation operator is ignored when logic is present."
         )
 
@@ -349,6 +471,7 @@ def _render_level4(
     fuzzy_row: pd.Series,
     lambda_val: float,
     context_config: dict,
+    modulation_operator: str,
 ) -> None:
     st.subheader("General explanation")
     aggregated = ml_attributions.get("aggregated")
@@ -367,17 +490,26 @@ def _render_level4(
         master_row=master_row,
         fuzzy_row=fuzzy_row,
         context_config=context_config,
+        modulation_operator=modulation_operator,
     )
     _priority_summary_alert(summary, float(case_row[_priority_column()]))
 
 
-def render_explain_tab(df: pd.DataFrame, lambda_val: float) -> None:
+def render_explain_tab(
+    df: pd.DataFrame,
+    lambda_val: float,
+    modulation_operator: str = "linear",
+) -> None:
     """Render the Explain tab using precomputed session_state artifacts."""
     st.markdown(
         """
-        This view explains **why** a case received its prioritization score.
+        This view explains **why** a case received its priority score.
         All explanations are read from the completed analysis run; no additional
         model inference is performed in this tab.
+
+        The bridge from the **integrated predictive score (d)** and
+        **contextual alignment score (c)** to the **priority score (p)** follows
+        the selected contextual modulation operator (Linear, Geometric, or Minimum).
         """
     )
 
@@ -388,6 +520,7 @@ def render_explain_tab(df: pd.DataFrame, lambda_val: float) -> None:
     ml_details = st.session_state.get("ml_details")
     feature_config = st.session_state.get("feature_config") or {}
     aggregation_method = st.session_state.get("aggregation_method", "average")
+    op = normalize_operator(modulation_operator)
 
     if ml_attributions is None or fuzzy_details is None or master_data is None:
         st.warning("Run the analysis first to enable case-level explanations.")
@@ -427,9 +560,10 @@ def render_explain_tab(df: pd.DataFrame, lambda_val: float) -> None:
         fuzzy_row,
         lambda_val,
         context_config,
+        op,
     )
     st.divider()
-    _render_level1(case_row, lambda_val)
+    _render_level1(case_row, lambda_val, op)
     st.divider()
     _render_level2(case_idx, case_row, master_row, ml_attributions, ml_details, feature_config)
     st.divider()

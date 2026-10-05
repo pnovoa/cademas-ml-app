@@ -17,6 +17,18 @@ from h2o.model import ModelBase
 from fuzzy_context import calculate_context_score, get_membership
 from explain_utils import aggregate_weighted_attributions, humanize_rule
 from ml_attribution import compute_model_attributions
+from modulation import (
+    USES_LAMBDA,
+    additive_contributions,
+    build_q_mod,
+    default_top_n_config,
+    find_config_by_label,
+    modulate,
+    normalize_operator,
+    operator_display_label,
+    operator_formula_caption,
+    uses_lambda,
+)
 from view_explanations import render_explain_tab
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -184,13 +196,13 @@ def render_home_tab(results_ready=False):
             1. **Upload four inputs** in the sidebar: model configuration (JSON),
                context configuration (JSON), MOJO models (.zip), and the case dataset (CSV).
             2. **Run the analysis** to compute, for each case:
-               - **Global ML Risk (Ri)** — weighted ensemble of model probabilities
-               - **Context Alignment (Ci)** — fuzzy evaluation of contextual rules
-            3. **Adjust λ** in the sidebar to balance ML risk and context alignment
-               into a single **Prioritization Score**:
-               λ · Ri + (1 − λ) · Ci.
+               - **Integrated predictive score (d)** — weighted combination of model predictions
+               - **Contextual alignment score (c)** — fuzzy evaluation of contextual rules
+            3. **Choose a contextual modulation operator** (Linear, Geometric, or Minimum)
+               to combine d and c into a **priority score (p)**. For Linear and
+               Geometric, adjust **λ** to balance the predictive and contextual signals.
             4. **Explore the results** in Overview, Models, Context, **Explain**, and
-               **Robustness** (sensitivity analysis as λ varies).
+               **Robustness** (within-operator λ sweeps and across-operator comparisons).
             """
         )
 
@@ -233,7 +245,6 @@ def render_about_tab():
         """
         **Authors:**
         - **Pavel Novoa Hernández** (Universidad de La Laguna, Spain) — pnovoahe@ull.edu.es
-        - Mariia Godz (Universidad de Granada, Spain) — mariiagodz@ugr.es
         - David A. Pelta (Universidad de Granada, Spain) — dpelta@ugr.es
         
         **Funding:**
@@ -367,17 +378,57 @@ with st.sidebar:
             if "aggregation_method" not in st.session_state:
                 st.session_state.aggregation_method = "average"
             st.selectbox(
-                "Context aggregation operator",
+                "Context aggregation",
                 ["average", "minimum (strict)", "product"],
-                key="aggregation_method"
+                key="aggregation_method",
+                help=(
+                    "How atomic and derived fuzzy memberships are combined into "
+                    "the contextual alignment score (c). Distinct from the contextual "
+                    "modulation operator that combines d and c into the priority score (p)."
+                ),
             )
             aggregation_method = st.session_state.aggregation_method
+
+            if "modulation_operator" not in st.session_state:
+                st.session_state.modulation_operator = "Linear"
+            st.selectbox(
+                "Contextual modulation operator",
+                ["Linear", "Geometric", "Minimum"],
+                key="modulation_operator",
+            )
+            st.caption(operator_formula_caption(st.session_state.modulation_operator))
 
         run_calc = st.button("Run analysis", type="primary", width='stretch')
 
         st.markdown("## Decision Adjustment")
-        lambda_val = st.slider("Lambda (weight)", 0.0, 1.0, 0.5, 0.01, key="lambda_val")
-        st.caption(f"Context contribution: {1 - lambda_val:.0%} | Risk contribution: {lambda_val:.0%}")
+        modulation_operator = normalize_operator(
+            st.session_state.get("modulation_operator", "Linear")
+        )
+        if uses_lambda(modulation_operator):
+            lambda_val = st.slider(
+                "Lambda (λ)",
+                0.0,
+                1.0,
+                0.5,
+                0.01,
+                key="lambda_val",
+            )
+            if modulation_operator == "linear":
+                st.caption(
+                    f"Contextual weight: {1 - lambda_val:.0%} | "
+                    f"Predictive weight: {lambda_val:.0%}"
+                )
+            else:
+                st.caption(
+                    f"Contextual exponent: {1 - lambda_val:.2f} | "
+                    f"Predictive exponent: {lambda_val:.2f}"
+                )
+        else:
+            lambda_val = float(st.session_state.get("lambda_val", 0.5))
+            st.caption(
+                "Minimum is parameter-free: p = min{d, c}. "
+                "λ is not used for this operator."
+            )
 
 
 # --- 4. ESTADO ---
@@ -427,7 +478,11 @@ if st.session_state.get("run_triggered", False):
                 total = sum(metrics_vals.values())
                 weights = {m: (val / total if total > 0 else 1 / len(valid_models)) for m, val in metrics_vals.items()}
 
-                st.session_state.ml_details = {"weights": weights, "metric": selected_metric}
+                st.session_state.ml_details = {
+                    "weights": weights,
+                    "metric": selected_metric,
+                    "performance": metrics_vals,
+                }
                 st.session_state.feature_config = feature_config
 
                 # C. H2O Loop
@@ -512,11 +567,29 @@ render_app_title()
 
 if st.session_state.base_results is not None:
     df = st.session_state.base_results.copy()
-    df["Prioritization_Score "] = (lambda_val * df["Ri_Global_Risk"]) + ((1 - lambda_val) * df["Ci_Context_Score"])
-
-    df["ML_Contribution"] = lambda_val * df["Ri_Global_Risk"]
-    df["Context_Contribution"] = (1 - lambda_val) * df["Ci_Context_Score"]
+    modulation_operator = normalize_operator(
+        st.session_state.get("modulation_operator", "Linear")
+    )
+    df["Prioritization_Score "] = modulate(
+        df["Ri_Global_Risk"],
+        df["Ci_Context_Score"],
+        modulation_operator,
+        lambda_val,
+    )
+    ml_contrib, ctx_contrib = additive_contributions(
+        df["Ri_Global_Risk"],
+        df["Ci_Context_Score"],
+        modulation_operator,
+        lambda_val,
+    )
+    if ml_contrib is not None:
+        df["ML_Contribution"] = ml_contrib
+        df["Context_Contribution"] = ctx_contrib
+    else:
+        df["ML_Contribution"] = np.nan
+        df["Context_Contribution"] = np.nan
     df["Lambda"] = lambda_val
+    df["Modulation_Operator"] = operator_display_label(modulation_operator)
 
     home_tab, tab1, tab2, tab3, tab_explain, tab_robustness, tab_help, tab4 = st.tabs(
         ["Home", "Overview", "Models", "Context", "Explain", "Robustness", "Help", "About"]
@@ -530,9 +603,9 @@ if st.session_state.base_results is not None:
         overview_metrics = [
             ("Positive label", f"{st.session_state.p_label}"),
             ("Number of cases", f"{len(df['Prioritization_Score '])}"),
-            ("Average Prioritization Score", f"{df['Prioritization_Score '].mean():.1%}"),
-            ("Average Global Risk (Ri)", f"{df['Ri_Global_Risk'].mean():.1%}"),
-            ("Average Context Alignment (Ci)", f"{df['Ci_Context_Score'].mean():.1%}"),
+            ("Average Priority Score", f"{df['Prioritization_Score '].mean():.1%}"),
+            ("Average Integrated Predictive Score (d)", f"{df['Ri_Global_Risk'].mean():.1%}"),
+            ("Average Contextual Alignment Score (c)", f"{df['Ci_Context_Score'].mean():.1%}"),
             (
                 "High Priority Cases (> 0.75)",
                 len(df[df["Prioritization_Score "] > 0.75]),
@@ -548,21 +621,21 @@ if st.session_state.base_results is not None:
 
         g1, g2 = st.columns([1.5, 1])
         with g1:
-            st.subheader("Prioritization: Risk vs Context")
+            st.subheader("Priority: predictive vs contextual")
             # Scatter Plot con Altair
             scatter = alt.Chart(df).mark_circle(size=60).encode(
-                x=alt.X('Ri_Global_Risk', title='ML Risk Score Ri (0–1)'),
-                y=alt.Y('Ci_Context_Score', title='Context Alignment Ci (0–1)'),
-                color=alt.Color('Prioritization_Score ', scale=alt.Scale(scheme='turbo'), title='Prior. Score'),
+                x=alt.X('Ri_Global_Risk', title='Integrated predictive score d (0–1)'),
+                y=alt.Y('Ci_Context_Score', title='Contextual alignment score c (0–1)'),
+                color=alt.Color('Prioritization_Score ', scale=alt.Scale(scheme='turbo'), title='Priority score'),
                 tooltip=['CaseID', 'Ri_Global_Risk', 'Ci_Context_Score', 'Prioritization_Score ']
             ).interactive()
             st.altair_chart(scatter, width='stretch')
 
         with g2:
-            st.subheader("Prioritization Score")
+            st.subheader("Priority score")
             # Histograma Mejorado con Altair
             hist = alt.Chart(df).mark_bar().encode(
-                x=alt.X("Prioritization_Score ", bin=alt.Bin(step=0.1), title="Global Score Range"),
+                x=alt.X("Prioritization_Score ", bin=alt.Bin(step=0.1), title="Priority score range"),
                 y=alt.Y('count()', title='Number of Cases'),
                 color=alt.value("#1E88E5")
             )
@@ -574,12 +647,17 @@ if st.session_state.base_results is not None:
         id_col = "CaseID"
         prob_cols = [c for c in df.columns if c.endswith("_prob")]
         # Columnas calculadas (en orden lógico)
-        calculated_cols = (
-            [id_col] +
-            ["Prioritization_Score ", "Ri_Global_Risk", "Ci_Context_Score",
-             "Lambda", "ML_Contribution", "Context_Contribution"] +
-            prob_cols
-        )
+        score_cols = [
+            "Prioritization_Score ",
+            "Ri_Global_Risk",
+            "Ci_Context_Score",
+            "Modulation_Operator",
+        ]
+        if uses_lambda(modulation_operator):
+            score_cols.append("Lambda")
+        if modulation_operator == "linear":
+            score_cols.extend(["ML_Contribution", "Context_Contribution"])
+        calculated_cols = [id_col] + score_cols + prob_cols
 
         # Columnas originales (preservando su orden)
         original_cols = [c for c in st.session_state.master_data.columns if c not in calculated_cols]
@@ -600,12 +678,16 @@ if st.session_state.base_results is not None:
             styled_df,
             column_config={
                 "Prioritization_Score ": st.column_config.NumberColumn(
-                    "Prioritization Score",
-                    help="Weighted final prioritization score",
+                    "Priority score (p)",
+                    help="Priority score from contextual modulation of d and c",
                     format="percent",
                 ),
-                "Ri_Global_Risk": _risk_progress_column("ML Risk (Ri)"),
-                "Ci_Context_Score": _context_progress_column("Context Alignment (Ci)"),
+                "Ri_Global_Risk": _risk_progress_column("Integrated predictive score (d)"),
+                "Ci_Context_Score": _context_progress_column("Contextual alignment score (c)"),
+                "Modulation_Operator": st.column_config.TextColumn(
+                    "Modulation operator",
+                    help="Contextual modulation operator used to compute the priority score",
+                ),
             },
             width='stretch',
             height=500
@@ -614,24 +696,58 @@ if st.session_state.base_results is not None:
     # --- TAB 2 ---
     with tab2:
         st.markdown("""
-        This view presents the **machine learning layer** of the prioritization pipeline.
-        It shows how the uploaded MOJO models are weighted and combined into a single
-        global risk score (**Ri**) that feeds the final decision.
+        This view presents the **Decision Integration Layer**: how uploaded models
+        contribute predictive signals that are combined into a single
+        **integrated predictive score (d)** before contextual modulation.
 
         Two sections are included:
 
-        - **Model Weights** — contribution weight ($W_i$) of each model, derived from the
+        - **Model Weights** — contribution weight ($w_k$) of each model, derived from the
           performance metric selected in the sidebar.
-        - **Risk Probabilities** — per-case risk probabilities predicted by each model,
-          together with the weighted **Global ML Risk (Ri)** aggregated across all models.
+        - **Model predictions** — per-case outputs of each model, together with the
+          weighted **integrated predictive score (d)**.
         """)
 
         st.subheader("Model Weights")
         if st.session_state.ml_details:
             weights = st.session_state.ml_details["weights"]
-            w_df = pd.DataFrame(list(weights.items()), columns=["Model", "Weight (Wi)"])
-            st.dataframe(w_df, width='stretch')
-        st.subheader("Risk Probabilities")
+            metric_name = st.session_state.ml_details.get("metric") or "Performance"
+            performance = st.session_state.ml_details.get("performance") or {}
+            if not performance and st.session_state.get("feature_config"):
+                feature_config = st.session_state.feature_config
+                performance = {
+                    model_name: feature_config.get(model_name, {})
+                    .get("performance", {})
+                    .get(metric_name, np.nan)
+                    for model_name in weights
+                }
+            w_df = pd.DataFrame(
+                [
+                    {
+                        "Model": model_name,
+                        metric_name: performance.get(model_name, np.nan),
+                        "Weight (Wi)": weight,
+                    }
+                    for model_name, weight in weights.items()
+                ]
+            )
+            st.dataframe(
+                w_df,
+                width="stretch",
+                column_config={
+                    metric_name: st.column_config.NumberColumn(
+                        metric_name,
+                        help="Selected performance metric used to derive Weight (Wi).",
+                        format="%.4f",
+                    ),
+                    "Weight (Wi)": st.column_config.NumberColumn(
+                        "Weight (Wi)",
+                        help=f"Normalized weight from {metric_name}.",
+                        format="%.4f",
+                    ),
+                },
+            )
+        st.subheader("Model predictions")
         id_col = "CaseID"
         prob_cols = [c for c in df.columns if c.endswith("_prob")]
 
@@ -654,7 +770,7 @@ if st.session_state.base_results is not None:
 
         prob_column_config = {
             id_col: st.column_config.TextColumn(id_col),
-            "Ri_Global_Risk": _risk_progress_column("Global ML Risk (Ri)"),
+            "Ri_Global_Risk": _risk_progress_column("Integrated predictive score (d)"),
         }
         for col in prob_cols:
             model_label = col.replace("_prob", "").replace("_", " ")
@@ -669,9 +785,10 @@ if st.session_state.base_results is not None:
     # --- TAB 3 (Visualización Difusa con Altair) ---
     with tab3:
         st.markdown("""
-        This view presents the **contextual reasoning layer** of the prioritization pipeline.
-        It shows how expert-defined fuzzy rules are applied to each case and aggregated into
-        the **Context Alignment** score (**Ci**) that complements the ML risk.
+        This view presents the **Contextual Modulator** inputs: how expert-defined
+        fuzzy rules are applied to each case and aggregated into the
+        **contextual alignment score (c)** used together with the integrated
+        predictive score before modulation.
 
         Three sections are included:
 
@@ -680,9 +797,9 @@ if st.session_state.base_results is not None:
           table alongside the chart reports per-case raw feature values and computed membership
           degrees for the selected rule.
         - **Derived Rules Overview** — membership values of composite rules and the resulting
-          **Context Alignment** score across all cases.
+          **contextual alignment score** across all cases.
         - **Scatterplot of Derived Rules** — explore the relationship between two derived
-          rules, colored by context alignment (when applicable).
+          rules, colored by contextual alignment (when applicable).
         """)
 
         st.subheader("Membership Functions")
@@ -863,11 +980,13 @@ if st.session_state.base_results is not None:
                     col: humanize_rule(col[3:], context_config)
                     for col in derived_mu_cols
                 }
-                rename_map["Context_Alignment"] = "Context Alignment (Ci)"
+                rename_map["Context_Alignment"] = "Contextual alignment score (c)"
                 display_df = heatmap_df.rename(columns=rename_map)
                 derived_column_config = {
                     "CaseID": st.column_config.TextColumn("CaseID"),
-                    "Context Alignment (Ci)": _context_progress_column("Context Alignment (Ci)"),
+                    "Contextual alignment score (c)": _context_progress_column(
+                        "Contextual alignment score (c)"
+                    ),
                 }
                 for col in derived_mu_cols:
                     derived_column_config[rename_map[col]] = _context_progress_column(rename_map[col])
@@ -920,7 +1039,7 @@ if st.session_state.base_results is not None:
 
     # --- TAB: EXPLAIN ---
     with tab_explain:
-        render_explain_tab(df, lambda_val)
+        render_explain_tab(df, lambda_val, modulation_operator)
 
 
     # --- TAB: ROBUSTNESS ---
@@ -928,264 +1047,371 @@ if st.session_state.base_results is not None:
         id_col = "CaseID"
 
         st.markdown("""
-        This analysis evaluates how **stable case rankings** remain when the decision weight
-        $\\lambda$ is varied from pure *Context Alignment* ($\\lambda = 0$) to pure *ML Risk*
-        ($\\lambda = 1$).
+        This analysis evaluates how **stable case rankings** remain under alternative
+        contextual modulation configurations $Q_{\\mathrm{mod}}$.
+
+        - **Within-operator** — for Linear and Geometric, vary $\\lambda$ from pure
+          contextual alignment ($\\lambda = 0$) to a pure integrated predictive signal
+          ($\\lambda = 1$).
+        - **Across-operator** — compare Linear, Geometric, and Minimum while holding
+          the integrated predictive score (d) and contextual alignment score (c) fixed.
 
         Three complementary views are provided:
 
-        - **Bump Chart** — how each case's priority rank shifts across $\\lambda$ steps.
-        - **Ranks Box Plot** — distribution of ranks per case over the same sweep.
+        - **Bump Chart** — how each case's priority rank shifts across selected configurations.
+        - **Ranks Box Plot** — distribution of ranks per case over $Q_{\\mathrm{mod}}$.
         - **Rank Acceptability Indices** — relative frequency of each case occupying
-          each rank position.
+          each rank position across configurations.
 
-        Use **Settings** to control the $\\lambda$ sweep granularity, how many cases are
-        displayed, and whether case selection follows the current sidebar $\\lambda$ or the
-        average rank across all sweep steps.
+        Use **Settings** to choose which modulation operators to include, the $\\lambda$
+        sweep granularity (shared by Linear and Geometric), how many cases to display,
+        and which configuration ranks the Top N cases.
         """)
 
         st.subheader("Settings")
-        c_ctrl1, c_ctrl2, c_ctrl3 = st.columns(3)
-        with c_ctrl1:
-            n_partitions = st.slider("Lambda Partitions (Steps)", min_value=2, max_value=10, value=4)
-        with c_ctrl2:
-            top_n_show = st.slider("Show Top N Cases", min_value=5, max_value=50, value=15,
-                                   help="Filters the cases with the highest ranking.")
-        with c_ctrl3:
-            select_by_current_lambda = st.checkbox(f"Select Cases with Current Lambda ($\\lambda = {lambda_val}$)", value=True,
-                                                   help="""Whether the top N cases are selected based on the current lambda value (check) or 
-                                                         based on the average ranks across all lambda partitions (uncheck).""")
+        global_op_label = operator_display_label(modulation_operator)
 
-        # DATA PREPARATION
-        # Generate exact steps. E.g.: [0.0, 0.25, 0.5, 0.75, 1.0]
-        lambda_steps = np.linspace(0, 1, n_partitions + 1)
+        # Persist checkbox defaults from the global sidebar operator on first visit /
+        # when the global operator changes and the user has not customized yet.
+        default_ops_key = "robustness_default_ops_source"
+        if st.session_state.get(default_ops_key) != global_op_label:
+            st.session_state.rob_op_linear = global_op_label == "Linear"
+            st.session_state.rob_op_geometric = global_op_label == "Geometric"
+            st.session_state.rob_op_minimum = global_op_label == "Minimum"
+            st.session_state[default_ops_key] = global_op_label
 
-        bump_data = []
-        for l_step in lambda_steps:
-            temp_df = df[[id_col, "Ri_Global_Risk", "Ci_Context_Score", "Prioritization_Score "]].copy()
-            # Simulated Score
-            temp_df["Sim_Score"] = (l_step * temp_df["Ri_Global_Risk"]) + (
-                    (1 - l_step) * temp_df["Ci_Context_Score"])
-            # Ranking (method='first' breaks ties by order of appearance)
-            temp_df["Rank"] = temp_df["Sim_Score"].rank(ascending=False, method='first')
-            temp_df["SelectRank"] = temp_df["Prioritization_Score "].rank(ascending=False, method='first') if select_by_current_lambda else temp_df["Rank"]
-            temp_df["Lambda"] = l_step
-            bump_data.append(temp_df)
+        st.markdown("**Modulation operators in $Q_{\\mathrm{mod}}$**")
+        op_c1, op_c2, op_c3 = st.columns(3)
+        with op_c1:
+            rob_linear = st.checkbox("Linear", key="rob_op_linear")
+        with op_c2:
+            rob_geometric = st.checkbox("Geometric", key="rob_op_geometric")
+        with op_c3:
+            rob_minimum = st.checkbox("Minimum", key="rob_op_minimum")
 
-        bump_df = pd.concat(bump_data)
+        selected_ops = []
+        if rob_linear:
+            selected_ops.append("linear")
+        if rob_geometric:
+            selected_ops.append("geometric")
+        if rob_minimum:
+            selected_ops.append("minimum")
 
-        # C. FILTERING (TOP N)
-        avg_ranks = bump_df.groupby(id_col)["SelectRank"].mean().sort_values()
-        top_ids = avg_ranks.head(top_n_show).index.tolist()
-        filtered_bump_df = bump_df[bump_df[id_col].isin(top_ids)]
-
-        rank_stats = filtered_bump_df.groupby(id_col)["Rank"].agg(
-            median="median",
-            q1=lambda s: s.quantile(0.25),
-            q3=lambda s: s.quantile(0.75),
-        )
-        rank_stats["iqr"] = rank_stats["q3"] - rank_stats["q1"]
-        rank_order = (
-            rank_stats.sort_values(["median", "iqr"], ascending=[True, True])
-            .index.tolist()
-        )
-
-        decision_grid_color = "#D3D3D3"
-
-        case_color = alt.Color(
-            f"{id_col}:N",
-            legend=None,
-            scale=alt.Scale(domain=rank_order),
-        )
-
-        # D. ALTAIR CHART LAYERS
-
-        case_labels = filtered_bump_df[id_col].astype(str).unique()
-        max_label_len = max(len(label) for label in case_labels)
-        x_pad = max(0.1, min(0.4, 0.06 + max_label_len * 0.012))
-        chart_side_padding = int(min(200, max(55, max_label_len * 7 + 24)))
-        label_dx = int(max(12, min(40, 8 + max_label_len * 1.5)))
-
-        # 1. Base Chart (Define common axes)
-        # Note: On the X axis we force 'values' to show only the exact partitions.
-        base = alt.Chart(filtered_bump_df).encode(
-            x=alt.X('Lambda:Q',
-                    axis=alt.Axis(values=list(lambda_steps), format='.2f', title="Lambda Weight (λ)"),
-                    scale=alt.Scale(domain=[-x_pad, 1 + x_pad])
-                    ),
-            y=alt.Y('Rank:Q',
-                    title='Ranking (1 = Highest Priority)',
-                    scale=alt.Scale(reverse=True, zero=False, domain=[0.5, filtered_bump_df['Rank'].max() +0.5]),  # reverse=True puts 1 at the top
-                    axis=alt.Axis(tickMinStep=1)  # Only integers on Y axis
-                    ),
-            color=case_color,
-        )
-
-        # 2. Line Layer (Smooth interpolation)
-        lines = base.mark_line(interpolate='monotone', strokeWidth=4).encode(
-            tooltip=[
-                alt.Tooltip(id_col, title="ID"),
-                alt.Tooltip("Lambda", format=".2f"),
-                alt.Tooltip("Rank", title="Ranking"),
-                alt.Tooltip("Sim_Score", title="Score", format=".1%")
-            ]
-        )
-
-        # 3. Points Layer (Big circles)
-        # Using size=100 (or more) to make them bigger than the line
-        points = base.mark_circle(size=130, opacity=1).encode(
-            tooltip=[alt.Tooltip(id_col), alt.Tooltip("Rank")]
-        )
-
-        # 4. Left Labels (Lambda = 0)
-        text_start = base.mark_text(align='right', dx=-label_dx, fontSize=12).encode(
-            text=f'{id_col}:N'
-        ).transform_filter(
-            (alt.datum.Lambda == 0.0)
-        )
-
-        # 5. Right Labels (Lambda = 1)
-        text_end = base.mark_text(align='left', dx=label_dx, fontSize=12).encode(
-            text=f'{id_col}:N'
-        ).transform_filter(
-            (alt.datum.Lambda == 1.0)
-        )
-
-        # Combine everything
-        final_chart = (
-            (lines + points + text_start + text_end)
-            .interactive()
-            .configure_view(strokeWidth=0, clip=False)
-            .configure(padding={"left": chart_side_padding, "right": chart_side_padding})
-        )
-
-        st.subheader("Bump Chart")
-        st.caption(
-            "Priority ranking trajectories as $\\lambda$ moves from context-driven ($\\lambda = 0$) "
-            "to risk-driven ($\\lambda = 1$) decision-making."
-        )
-        st.altair_chart(final_chart, width='stretch', theme="streamlit", height=500)
-
-        box_chart = (
-            alt.Chart(filtered_bump_df)
-            .mark_boxplot(
-                extent="min-max",
-                box=alt.MarkConfig(stroke="black"),
-                median=alt.MarkConfig(stroke="black"),
+        if not selected_ops:
+            st.warning(
+                "Select at least one modulation operator to build $Q_{\\mathrm{mod}}$."
             )
-            .encode(
+        else:
+            needs_lambda_sweep = any(op in USES_LAMBDA for op in selected_ops)
+
+            c_ctrl1, c_ctrl2, c_ctrl3 = st.columns(3)
+            with c_ctrl1:
+                if needs_lambda_sweep:
+                    n_partitions = st.slider(
+                        "Lambda Partitions (Steps)",
+                        min_value=2,
+                        max_value=10,
+                        value=4,
+                        help="Shared λ grid for Linear and Geometric.",
+                    )
+                else:
+                    n_partitions = 4
+                    st.caption("λ partitions not used (only Minimum selected).")
+            with c_ctrl2:
+                top_n_show = st.slider(
+                    "Show Top N Cases",
+                    min_value=5,
+                    max_value=50,
+                    value=15,
+                    help="Filters the cases with the highest ranking under the selected configuration.",
+                )
+
+            lambda_steps = (
+                np.linspace(0, 1, n_partitions + 1) if needs_lambda_sweep else np.array([0.5])
+            )
+            q_mod = build_q_mod(selected_ops, lambda_steps)
+            config_labels = [c.label for c in q_mod]
+            preferred = default_top_n_config(q_mod, modulation_operator, preferred_lambda=0.5)
+            preferred_label = preferred.label if preferred is not None else config_labels[0]
+
+            with c_ctrl3:
+                # Keep selection valid when Q_mod changes.
+                current_sel = st.session_state.get("rob_top_n_config")
+                if current_sel not in config_labels:
+                    st.session_state.rob_top_n_config = preferred_label
+                top_n_config_label = st.selectbox(
+                    "Select Top N by configuration",
+                    config_labels,
+                    key="rob_top_n_config",
+                    help=(
+                        "Cases shown in the charts are the Top N under this modulation "
+                        "configuration. Default prefers the sidebar operator at λ ≈ 0.5 "
+                        "(or Minimum)."
+                    ),
+                )
+
+            top_n_config = find_config_by_label(q_mod, top_n_config_label) or preferred
+
+            # DATA PREPARATION over Q_mod
+            bump_data = []
+            for cfg_idx, cfg in enumerate(q_mod):
+                temp_df = df[[id_col, "Ri_Global_Risk", "Ci_Context_Score"]].copy()
+                lam = 0.5 if cfg.lambda_val is None else float(cfg.lambda_val)
+                temp_df["Sim_Score"] = modulate(
+                    temp_df["Ri_Global_Risk"],
+                    temp_df["Ci_Context_Score"],
+                    cfg.operator,
+                    lam,
+                )
+                temp_df["Rank"] = temp_df["Sim_Score"].rank(ascending=False, method="first")
+                temp_df["Operator"] = cfg.operator_label
+                temp_df["Lambda"] = cfg.lambda_val if cfg.lambda_val is not None else np.nan
+                temp_df["Config"] = cfg.label
+                temp_df["ConfigOrder"] = cfg_idx
+                bump_data.append(temp_df)
+
+            bump_df = pd.concat(bump_data, ignore_index=True)
+
+            # Top N by selected configuration ranks
+            select_ranks = (
+                bump_df[bump_df["Config"] == top_n_config.label]
+                .set_index(id_col)["Rank"]
+                .sort_values()
+            )
+            top_ids = select_ranks.head(top_n_show).index.tolist()
+            filtered_bump_df = bump_df[bump_df[id_col].isin(top_ids)].copy()
+            last_config = config_labels[-1]
+            filtered_bump_df["IsLastConfig"] = filtered_bump_df["Config"] == last_config
+
+            rank_stats = filtered_bump_df.groupby(id_col)["Rank"].agg(
+                median="median",
+                q1=lambda s: s.quantile(0.25),
+                q3=lambda s: s.quantile(0.75),
+            )
+            rank_stats["iqr"] = rank_stats["q3"] - rank_stats["q1"]
+            rank_order = (
+                rank_stats.sort_values(["median", "iqr"], ascending=[True, True])
+                .index.tolist()
+            )
+
+            decision_grid_color = "#D3D3D3"
+
+            case_color = alt.Color(
+                f"{id_col}:N",
+                legend=None,
+                scale=alt.Scale(domain=rank_order),
+            )
+
+            case_labels = filtered_bump_df[id_col].astype(str).unique()
+            max_label_len = max((len(label) for label in case_labels), default=1)
+            # Right padding for end labels; keep the plot flush to the Y axis on the left.
+            chart_right_padding = int(min(320, max(90, max_label_len * 10 + 48)))
+            label_dx = int(max(10, min(28, 6 + max_label_len * 0.8)))
+            n_configs = len(config_labels)
+            # Quantitative axis: hug Y axis on the left; leave room on the right for labels.
+            x_domain = [-0.02, max(n_configs - 1, 0) + 0.55]
+            escaped_labels = [
+                lbl.replace("\\", "\\\\").replace("'", "\\'") for lbl in config_labels
+            ]
+            label_expr = (
+                "[" + ", ".join(f"'{lbl}'" for lbl in escaped_labels) + "][datum.value]"
+            )
+
+            base = alt.Chart(filtered_bump_df).encode(
                 x=alt.X(
-                    f"{id_col}:N",
-                    title="Case",
-                    sort=rank_order,
-                    scale=alt.Scale(paddingInner=0.2, paddingOuter=0.05),
+                    "ConfigOrder:Q",
+                    title="Modulation configuration",
+                    scale=alt.Scale(domain=x_domain, nice=False, zero=False),
+                    axis=alt.Axis(
+                        values=list(range(n_configs)),
+                        labelExpr=label_expr,
+                        labelAngle=-35,
+                        labelLimit=180,
+                        labelOverlap=False,
+                    ),
                 ),
                 y=alt.Y(
                     "Rank:Q",
                     title="Ranking (1 = Highest Priority)",
-                    scale=alt.Scale(reverse=True, zero=False),
-                    axis=alt.Axis(
-                        tickMinStep=1,
-                        grid=True,
-                        gridColor=decision_grid_color,
+                    scale=alt.Scale(
+                        reverse=True,
+                        zero=False,
+                        domain=[0.5, filtered_bump_df["Rank"].max() + 0.5],
                     ),
+                    axis=alt.Axis(tickMinStep=1),
                 ),
                 color=case_color,
-                tooltip=[id_col, alt.Tooltip("Rank", title="Rank")],
             )
-        )
 
-        n_steps = len(lambda_steps)
-        rai_df = (
-            filtered_bump_df.groupby([id_col, "Rank"])
-            .size()
-            .reset_index(name="count")
-        )
-        rai_df["frequency"] = rai_df["count"] / n_steps
-        rai_df["freq_label"] = rai_df["frequency"].map(lambda x: f"{x:.1f}")
-
-        rai_color_range = [to_hex(cm.RdYlGn_r(v)) for v in np.linspace(0, 1, 9)]
-
-        rai_axis = alt.Axis(
-            grid=True,
-            gridColor="black",
-            gridDash=[1, 3],
-            tickBand="extent",
-        )
-        rai_rect = (
-            alt.Chart(rai_df)
-            .mark_rect()
-            .encode(
-                x=alt.X(
-                    f"{id_col}:O",
-                    title="Case",
-                    sort=rank_order,
-                    axis=rai_axis,
-                ),
-                y=alt.Y(
-                    "Rank:O",
-                    title="Rank",
-                    sort=alt.SortOrder("ascending"),
-                    axis=rai_axis,
-                ),
-                color=alt.Color(
-                    "frequency:Q",
-                    title="Relative Frequency",
-                    scale=alt.Scale(domain=[0, 1], range=rai_color_range),
-                    legend=alt.Legend(
-                        orient="top",
-                        direction="horizontal",
-                        titleOrient="top",
-                        gradientLength=300,
-                    ),
-                ),
+            lines = base.mark_line(
+                interpolate="monotone", strokeWidth=4, clip=False
+            ).encode(
                 tooltip=[
-                    id_col,
-                    alt.Tooltip("Rank", title="Rank"),
-                    alt.Tooltip("frequency", title="Relative Frequency", format=".1%"),
-                    alt.Tooltip("count", title="Occurrences"),
-                ],
+                    alt.Tooltip(id_col, title="ID"),
+                    alt.Tooltip("Config", title="Configuration"),
+                    alt.Tooltip("Operator", title="Operator"),
+                    alt.Tooltip("Lambda", format=".2f"),
+                    alt.Tooltip("Rank", title="Ranking"),
+                    alt.Tooltip("Sim_Score", title="Score", format=".1%"),
+                ]
             )
-        )
-        rai_text = (
-            alt.Chart(rai_df)
-            .mark_text(color="black", fontSize=10)
-            .encode(
-                x=alt.X(f"{id_col}:O", sort=rank_order),
-                y=alt.Y("Rank:O", sort=alt.SortOrder("ascending")),
-                text="freq_label:N",
+
+            points = base.mark_circle(size=130, opacity=1, clip=False).encode(
+                tooltip=[
+                    alt.Tooltip(id_col),
+                    alt.Tooltip("Config"),
+                    alt.Tooltip("Rank"),
+                ]
             )
-        )
-        rai_chart = alt.layer(rai_rect, rai_text).properties(
-            height=max(200, rai_df["Rank"].nunique() * 25)
-        )
 
-        n_cases_shown = len(top_ids)
-        box_caption = (
-            "Distribution of priority rankings per case across all λ partition steps."
-        )
-        rai_caption = (
-            "Relative frequency of each case occupying a given rank as λ varies."
-        )
+            text_end = (
+                base.mark_text(
+                    align="left",
+                    baseline="middle",
+                    dx=label_dx,
+                    fontSize=12,
+                    clip=False,
+                )
+                .encode(text=f"{id_col}:N")
+                .transform_filter(alt.datum.IsLastConfig)
+            )
 
-        if n_cases_shown <= 10:
-            col_box, col_rai = st.columns(2)
-            with col_box:
+            final_chart = (
+                alt.layer(lines, points, text_end)
+                .configure_view(strokeWidth=0, clip=False)
+                .configure(
+                    padding={
+                        "left": 2,
+                        "right": chart_right_padding,
+                        "top": 12,
+                        "bottom": 12,
+                    }
+                )
+            )
+
+
+            st.altair_chart(final_chart, width="stretch", theme="streamlit", height=520)
+
+            box_chart = (
+                alt.Chart(filtered_bump_df)
+                .mark_boxplot(
+                    extent="min-max",
+                    box=alt.MarkConfig(stroke="black"),
+                    median=alt.MarkConfig(stroke="black"),
+                )
+                .encode(
+                    x=alt.X(
+                        f"{id_col}:N",
+                        title="Case",
+                        sort=rank_order,
+                        scale=alt.Scale(paddingInner=0.2, paddingOuter=0.05),
+                    ),
+                    y=alt.Y(
+                        "Rank:Q",
+                        title="Ranking (1 = Highest Priority)",
+                        scale=alt.Scale(reverse=True, zero=False),
+                        axis=alt.Axis(
+                            tickMinStep=1,
+                            grid=True,
+                            gridColor=decision_grid_color,
+                        ),
+                    ),
+                    color=case_color,
+                    tooltip=[id_col, alt.Tooltip("Rank", title="Rank")],
+                )
+            )
+
+            n_configs = len(q_mod)
+            rai_df = (
+                filtered_bump_df.groupby([id_col, "Rank"])
+                .size()
+                .reset_index(name="count")
+            )
+            rai_df["frequency"] = rai_df["count"] / n_configs
+            rai_df["freq_label"] = rai_df["frequency"].map(lambda x: f"{x:.1f}")
+
+            rai_color_range = [to_hex(cm.RdYlGn_r(v)) for v in np.linspace(0, 1, 9)]
+
+            rai_axis = alt.Axis(
+                grid=True,
+                gridColor="black",
+                gridDash=[1, 3],
+                tickBand="extent",
+            )
+            rai_rect = (
+                alt.Chart(rai_df)
+                .mark_rect()
+                .encode(
+                    x=alt.X(
+                        f"{id_col}:O",
+                        title="Case",
+                        sort=rank_order,
+                        axis=rai_axis,
+                    ),
+                    y=alt.Y(
+                        "Rank:O",
+                        title="Rank",
+                        sort=alt.SortOrder("ascending"),
+                        axis=rai_axis,
+                    ),
+                    color=alt.Color(
+                        "frequency:Q",
+                        title="Relative Frequency",
+                        scale=alt.Scale(domain=[0, 1], range=rai_color_range),
+                        legend=alt.Legend(
+                            orient="top",
+                            direction="horizontal",
+                            titleOrient="top",
+                            gradientLength=300,
+                        ),
+                    ),
+                    tooltip=[
+                        id_col,
+                        alt.Tooltip("Rank", title="Rank"),
+                        alt.Tooltip("frequency", title="Relative Frequency", format=".1%"),
+                        alt.Tooltip("count", title="Occurrences"),
+                    ],
+                )
+            )
+            rai_text = (
+                alt.Chart(rai_df)
+                .mark_text(color="black", fontSize=10)
+                .encode(
+                    x=alt.X(f"{id_col}:O", sort=rank_order),
+                    y=alt.Y("Rank:O", sort=alt.SortOrder("ascending")),
+                    text="freq_label:N",
+                )
+            )
+            rai_chart = alt.layer(rai_rect, rai_text).properties(
+                height=max(200, rai_df["Rank"].nunique() * 25)
+            )
+
+            n_cases_shown = len(top_ids)
+            box_caption = (
+                "Distribution of priority rankings per case across selected modulation configurations."
+            )
+            rai_caption = (
+                "Relative frequency of each case occupying a given rank across $Q_{\\mathrm{mod}}$."
+            )
+
+            if n_cases_shown <= 10:
+                col_box, col_rai = st.columns(2)
+                with col_box:
+                    st.subheader("Ranks Box Plot")
+                    st.caption(box_caption)
+                    st.altair_chart(box_chart, width="stretch", theme="streamlit", height=400)
+                with col_rai:
+                    st.subheader("Rank Acceptability Indices")
+                    st.caption(rai_caption)
+                    st.altair_chart(rai_chart, width="stretch", theme="streamlit")
+            else:
                 st.subheader("Ranks Box Plot")
                 st.caption(box_caption)
                 st.altair_chart(box_chart, width="stretch", theme="streamlit", height=400)
-            with col_rai:
+
                 st.subheader("Rank Acceptability Indices")
                 st.caption(rai_caption)
                 st.altair_chart(rai_chart, width="stretch", theme="streamlit")
-        else:
-            st.subheader("Ranks Box Plot")
-            st.caption(box_caption)
-            st.altair_chart(box_chart, width="stretch", theme="streamlit", height=400)
-
-            st.subheader("Rank Acceptability Indices")
-            st.caption(rai_caption)
-            st.altair_chart(rai_chart, width="stretch", theme="streamlit")
 
 # --- TAB HELP ---
 

@@ -11,10 +11,10 @@ def get_help_markdown() -> str:
 
 **CADEMAS-ML** is a *cooperative and context-aware decision support framework*.
 It integrates:
-- **Machine Learning risk estimates** (data-driven predictions), and
+- **Machine learning predictions** (data-driven model outputs), and
 - **Contextual reasoning** based on expert-defined rules and organizational priorities.
 
-Rather than replacing ML with rules (or vice versa), CADEMAS-ML **combines both explicitly and transparently** into a single prioritization score.
+Rather than replacing ML with rules (or vice versa), CADEMAS-ML **combines both explicitly and transparently** into a single priority score.
 
 ---
 
@@ -32,7 +32,7 @@ Typical contents:
 - Model identifier (must match the uploaded MOJO filename),
 - One or more performance metrics (e.g. AUC, accuracy, F1).
 
-These metrics are **not used for prediction**, but **only to weight models** in the final ML risk aggregation.
+These metrics are **not used for prediction**, but **only to weight models** when forming the integrated predictive score.
 
 > ⚠️ The identifiers in this file must be consistent with the names of the uploaded MOJO models.
 
@@ -72,7 +72,7 @@ This JSON defines the **contextual reasoning layer**, including:
 - Aggregation operators (AND / OR),
 - Final context aggregation logic.
 
-Each rule produces a **membership degree** μ in [0,1], and the full context evaluation yields a **context alignment score** C_i in [0,1].
+Each rule produces a **membership degree** μ in [0,1], and the full context evaluation yields a **contextual alignment score** $c$ in [0,1].
 
 ##### Minimal illustrative context JSON (example)
 
@@ -119,7 +119,7 @@ Explanation:
 - **rules** define atomic fuzzy membership functions over raw features.
 - **derived_rules** combine atomic rules using fuzzy operators (`AND`, `OR`, `PRODUCT`, `AVERAGE`).
 - **logic** defines a declarative final aggregation when the context engine is used without an explicit override.
-- In the interactive application, the operator selected under **Context Parameters** takes precedence and is applied to the numeric atomic and derived memberships retained in the audit matrix.
+- In the interactive application, the operator selected under **Context aggregation** takes precedence and is applied to the numeric atomic and derived memberships retained in the audit matrix.
 - All membership values are normalized in the range `[0,1]`.
 
 ---
@@ -168,14 +168,14 @@ If multiple context JSON files are uploaded, select the desired one in **Context
 
 ---
 
-## Machine Learning Risk Aggregation
+## Integrated Predictive Score
 
 For each case:
-1. Every MOJO model produces a **risk probability** R_i in [0,1].
-2. Model weights w_i are computed from the selected performance metric.
-3. The global ML risk is computed as a weighted sum of individual model risks.
+1. Every MOJO model produces a **predictive output** in [0,1].
+2. Model weights $w_k$ are computed from the selected performance metric.
+3. The **integrated predictive score** $d$ is the weighted sum of individual model outputs.
 
-This allows higher-performing models to contribute more strongly to the final risk estimate.
+This allows higher-performing models to contribute more strongly to the integrated predictive signal.
 
 ---
 
@@ -187,31 +187,40 @@ This allows higher-performing models to contribute more strongly to the final ri
   - **AND** → `min` or `product` (depending on configuration).
 - Conditional rules (e.g. department-specific criteria) are activated selectively.
 
-The result is a **context alignment score** C_i, fully interpretable and auditable.
+The result is a **contextual alignment score** $c$, fully interpretable and auditable.
 
 ---
 
 ## Decision Integration
 
-The final priority score is a convex combination of the global ML risk and the context alignment score, controlled by the parameter λ.
+The final **priority score** $p$ combines the **integrated predictive score** $d$ and
+the **contextual alignment score** $c$ through a **contextual modulation operator**
+selected in the sidebar:
 
-where:
-- λ = 1 → purely ML-driven decision,
+- **Linear:** `p = λ·d + (1−λ)·c` (weighted average; λ controls the trade-off)
+- **Geometric:** `p = d^λ · c^(1−λ)` (weighted geometric mean; λ controls the exponents)
+- **Minimum:** `p = min{d, c}` (limiting-factor / bottleneck; parameter-free)
+
+For Linear and Geometric:
+- λ = 1 → purely predictive decision,
 - λ = 0 → purely context-driven decision,
-- Intermediate values allow **sensitivity analysis**.
+- Intermediate values allow **within-operator** sensitivity analysis.
+
+**Context aggregation** (average / minimum (strict) / product) is separate: it
+builds $c$ from fuzzy memberships. Modulation then combines $d$ and $c$ into $p$.
 
 ---
 
 ## Explain Tab (Case-Level XAI)
 
-After running an analysis, the **Explain** tab provides a case-level breakdown of the prioritization score without re-running model inference.
+After running an analysis, the **Explain** tab provides a case-level breakdown of the priority score without re-running model inference.
 
 The tab includes four levels:
 
-1. **Global decomposition** — shows how `P = λ·Ri + (1−λ)·Ci` combines ML risk and context alignment.
-2. **ML risk attribution** — top features that push the cooperative ML risk up or down for the selected case. Attributions are precomputed during the analysis run using a one-at-a-time perturbation method (each feature replaced by a cohort baseline: median for numeric variables, mode for categorical variables).
+1. **Priority score breakdown** — shows how the selected modulation operator maps $d$ and $c$ to $p$ (additive for Linear, multiplicative for Geometric, limiting factor for Minimum).
+2. **Predictive attribution** — top features that push the integrated predictive score up or down for the selected case. Attributions are precomputed during the analysis run using a one-at-a-time perturbation method (each feature replaced by a cohort baseline: median for numeric variables, mode for categorical variables). Per-model effects are integrated with the same model weights used for $d$.
 3. **Fuzzy context traceability** — membership degrees of atomic and derived rules for the selected case. Under a strict minimum aggregation, the bottleneck rule is highlighted.
-4. **Natural-language summary** — concise template-based explanation combining ML drivers and contextual constraints.
+4. **Natural-language summary** — concise template-based explanation combining predictive drivers, contextual evidence, and the selected modulation operator.
 
 > Note: the bundled AutoML MOJO models are predominantly Stacked Ensembles, which do not expose native H2O SHAP contributions. The perturbation-based attributions are therefore approximate local effects rather than exact TreeSHAP values.
 
@@ -220,11 +229,12 @@ The tab includes four levels:
 ## Why This Approach?
 
 CADEMAS-ML supports:
-- Explicit trade-offs between prediction and policy,
+- Explicit trade-offs between prediction and policy (Linear / Geometric with λ),
+- Restrictive cooperation via the Minimum operator,
 - Robust decisions under changing organizational contexts,
-- Full transparency: every score can be decomposed into ML and context components.
+- Full transparency: every score can be inspected as integrated predictive score, contextual alignment, and their modulation into the priority score.
 
-Use the **Robustness** tab to explore how rankings evolve as λ changes.
+Use the **Robustness** tab to explore **within-operator** stability (λ sweeps for Linear/Geometric) and **across-operator** comparisons (Linear vs Geometric vs Minimum) over the configuration set Q_mod.
 
 ---
 """

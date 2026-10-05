@@ -157,7 +157,7 @@ def _eval_logic_node(node, mu_dict: dict, n_rows: int) -> np.ndarray:
     return np.zeros(n_rows, dtype=float)
 
 def calculate_context_score(df: pd.DataFrame, context_config: dict, aggregation: str):
-    """Compute context alignment score (Ci) supporting:
+    """Compute contextual alignment score (c) supporting:
 
     - context_config['rules'] : base membership rules
     - context_config['derived_rules'] : composition rules built from base rules
