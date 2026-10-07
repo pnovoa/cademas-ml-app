@@ -1,7 +1,9 @@
 # Runtime deps for Streamlit Community Cloud / local app.
 # Keep this lean: unused scientific stacks slow Cloud installs (esp. on wrong Python).
+# matplotlib is required by pandas Styler.background_gradient in Overview tables.
 streamlit==1.53.0
 h2o==3.46.0.9
 pandas==2.3.3
 numpy==2.2.6
 altair==6.0.0
+matplotlib==3.10.8
