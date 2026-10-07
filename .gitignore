@@ -254,3 +254,7 @@ app/.streamlit/secrets.toml
 /datos/
 /models/
 /models_attrition/
+
+# Manuscript archive (kept locally, not versioned with the app)
+paper-taf-v5.zip
+paper-taf-v5/
