@@ -10,8 +10,6 @@ import json
 import os
 import tempfile
 import altair as alt
-from matplotlib import cm
-from matplotlib.colors import to_hex
 from animation import render_animated_header
 from h2o.model import ModelBase
 from fuzzy_context import calculate_context_score, get_membership
@@ -1330,7 +1328,11 @@ if st.session_state.base_results is not None:
             rai_df["frequency"] = rai_df["count"] / n_configs
             rai_df["freq_label"] = rai_df["frequency"].map(lambda x: f"{x:.1f}")
 
-            rai_color_range = [to_hex(cm.RdYlGn_r(v)) for v in np.linspace(0, 1, 9)]
+            # RdYlGn_r-like stops (green → red); avoids a matplotlib dependency on Cloud
+            rai_color_range = [
+                "#1a9850", "#66bd63", "#a6d96a", "#d9ef8b", "#ffffbf",
+                "#fee08b", "#fdae61", "#f46d43", "#d73027",
+            ]
 
             rai_axis = alt.Axis(
                 grid=True,

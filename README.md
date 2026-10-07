@@ -25,11 +25,16 @@ Python 3.11 and Java 17+ (required for H2O MOJO loading; Streamlit Cloud install
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt   # use requirements-dev.txt if you need pytest
 streamlit run app/app_v1.py
 ```
 
-For Streamlit Community Cloud, set the main file to `app/app_v1.py`.
+### Streamlit Community Cloud
+
+1. Main file: `app/app_v1.py`.
+2. **Advanced settings → Python version: 3.11** (required). Community Cloud ignores `runtime.txt` and currently defaults to 3.14, where `h2o` / scientific wheels often hang or fail during `uv pip install`.
+3. First boot can still take several minutes while `h2o` downloads its Java runtime jars — that is normal; the repo itself is small (~7 MB of MOJO examples).
+4. Java comes from `packages.txt` (`openjdk-21-jre-headless`).
 
 ## Example inputs
 
