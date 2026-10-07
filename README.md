@@ -19,7 +19,7 @@ CADEMAS-ML integrates and weights heterogeneous predictive models (H2O MOJO), ev
 
 ## Run locally
 
-Python 3.11 and Java 17+ (required for H2O MOJO loading). On macOS: `brew install openjdk@17`.
+Python 3.11 and Java 17+ (required for H2O MOJO loading; Streamlit Cloud installs OpenJDK 21 via `packages.txt`). On macOS: `brew install openjdk@17` or `openjdk@21`.
 
 ```bash
 python3.11 -m venv .venv
